@@ -13,7 +13,7 @@ RGB = tuple[int, int, int]
 def _rgb_dist(a: RGB, b: RGB) -> int:
     """Naive color distance"""
     dr, dg, db = a[0]-b[0], a[1]-b[1], a[2]-b[2]
-    return dr*dr + dg*dg + db*db
+    return dr**2 + dg**2 + db**2
 
 def _top_opaque_colors(img: Image.Image, alpha_threshold: int, limit: int = 8) -> list[RGB]:
     """Return the most common opaque colors (RGB) up to limit."""
@@ -25,16 +25,20 @@ def _top_opaque_colors(img: Image.Image, alpha_threshold: int, limit: int = 8) -
             counts[(r, g, b)] += 1
     return [c for c, _ in counts.most_common(limit)]
 
-def _pick_background(common: list[RGB]) -> RGB:
-    """Pick the candidate farthest from the common colors"""
+def _pick_background(colors: list[RGB]) -> RGB:
+    """
+    Pick the candidate farthest from the common colors.
+    Used for choosing the color of pixels with alpha to avoid clashing
+    with the actual colors in the image
+    """
     background_color_candidates: list[RGB] = [
+        (0, 255, 255),   # cyan
         (255, 255, 255), # white
         (255, 0, 0),     # red
         (0, 255, 0),     # green
         (0, 0, 255),     # blue
         (255, 255, 0),   # yellow
         (255, 0, 255),   # magenta
-        (0, 255, 255),   # cyan
         (255, 128, 0),   # orange
         (128, 0, 255),   # violet
         (0, 128, 255),   # sky
@@ -42,14 +46,13 @@ def _pick_background(common: list[RGB]) -> RGB:
         (255, 0, 128),   # pink
     ]
 
-    common = list(common)
-    if not common:
+    if not colors:
         return (255, 255, 255)
     best, best_score = background_color_candidates[0], -1
-    for cand in background_color_candidates:
-        score = min(_rgb_dist(cand, c) for c in common)
+    for color_candidate in background_color_candidates:
+        score = min(_rgb_dist(color_candidate, c) for c in colors)
         if score > best_score:
-            best, best_score = cand, score
+            best, best_score = color_candidate, score
     return best
 
 def clamp_alpha(

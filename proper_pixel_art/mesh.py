@@ -8,6 +8,11 @@ import numpy as np
 import cv2
 from proper_pixel_art import utils, colors
 
+# Lines are a list of pixel indices for an image
+Lines = list[int]
+# A mesh is a tuple of lists of x coordinates and y coordinates for lines
+Mesh = tuple[Lines, Lines]
+
 def close_edges(edges: np.ndarray, kernel_size: int = 10) -> np.ndarray:
     """
     Apply a morphological closing to fill small gaps in edge map.
@@ -17,7 +22,7 @@ def close_edges(edges: np.ndarray, kernel_size: int = 10) -> np.ndarray:
     closed = cv2.morphologyEx(edges, cv2.MORPH_CLOSE, kernel)
     return closed
 
-def cluster_lines(lines: list[int], threshold: int = 4) -> list[int]:
+def cluster_lines(lines: Lines, threshold: int = 4) -> Lines:
     """Remove lines that are too close to each other by clustering near values"""
     if not lines:
         return []
@@ -38,7 +43,7 @@ def detect_grid_lines(edges: np.ndarray,
                       hough_min_line_len: int = 50,
                       hough_max_line_gap: int = 10,
                       angle_threshold_deg = 15
-                     ) -> tuple[list[int], list[int]]:
+                     ) -> Mesh:
     """
     - Use Hough line transformation to detect the pixel edges.
     - Only keep lines that are close to vertical or horizontal
@@ -74,8 +79,8 @@ def detect_grid_lines(edges: np.ndarray,
     clustered_lines_y = cluster_lines(lines_y)
     return clustered_lines_x, clustered_lines_y
 
-def get_pixel_width(lines_x: list[int],
-                    lines_y: list[int],
+def get_pixel_width(lines_x: Lines,
+                    lines_y: Lines,
                     trim_outlier_fraction: float = 0.2) -> int:
     """
     Takes lists of line coordinates in x and y direction, and outlier fraction.
@@ -104,7 +109,7 @@ def get_pixel_width(lines_x: list[int],
 
     return np.median(middle)
 
-def homogenize_lines(lines: list[int], pixel_width: int) -> list[int]:
+def homogenize_lines(lines: Lines, pixel_width: int) -> Lines:
     """
     Given sorted line coords and pixel width,
     further partition those line coordinates to approximately even spacing.
@@ -136,7 +141,7 @@ def compute_mesh(
         closure_kernel_size: int = 8,
         output_dir: Path | None = None,
         pixel_width: int | None = None
-        ) -> tuple[list[int], list[int]]:
+        ) -> Mesh:
     """
     Finds grid lines of a high resolution noisy image.
     - Uses Canny edge detector to find vertical and horizontal edges
@@ -145,7 +150,7 @@ def compute_mesh(
     - Finds true width of pixels from line differences
     - Completes mesh by filling in gaps between identified lines
     inputs:
-        img_path: Path to image
+        img: The image to compute the mesh
         canny_thresholds: thresholds 1 and 2 for canny edge detection algorithm
         closure_kernel_size: Kernel size for the morphological closure
         output_dir (optional): If set, saves images of steps in algorithm to dir
@@ -197,7 +202,7 @@ def compute_mesh_with_scaling(
         upscale_factor: int,
         output_dir: Path | None = None,
         pixel_width: int | None = None
-        ) -> tuple[tuple[list[int], list[int]], int]:
+        ) -> tuple[Mesh, int]:
     """
     Try to compute the mesh on on the image.
     First upscale the image with a given upscale factor
@@ -218,7 +223,7 @@ def compute_mesh_with_scaling(
     )
     return fallback_mesh_lines, 1
 
-def _is_trivial_mesh(img_mesh: tuple[list[int], list[int]]) -> bool:
+def _is_trivial_mesh(img_mesh: Mesh) -> bool:
     """
     Returns True if no lines have been identified when computing the mesh.
     That is, the points in mesh_x and mesh_y conist of the left, right, and top, bottom
