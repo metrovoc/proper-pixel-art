@@ -99,7 +99,7 @@ def palette_img(
         quantize_method: int = Quantize.MAXCOVERAGE,
         output_dir: Path | None = None) -> Image.Image:
     """
-    Discretizes the colors in the image img to at most num_colors.
+    Discretizes the colors in the image to at most num_colors.
     Saves the quantized image to output_dir if not None.
     Returns the color pallete of the image.
 

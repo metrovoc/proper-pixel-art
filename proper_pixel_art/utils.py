@@ -1,6 +1,9 @@
 """Utility functions"""
 from PIL import Image, ImageDraw
 
+Lines = list[int] # Lines are a list of pixel indices for an image
+Mesh = tuple[Lines, Lines] # A mesh is a tuple of lists of x coordinates and y coordinates for lines
+
 def crop_border(image : Image.Image, num_pixels: int=1) -> Image.Image:
     """
     Crop the boder of an image by a few pixels.
@@ -14,17 +17,19 @@ def crop_border(image : Image.Image, num_pixels: int=1) -> Image.Image:
 
 def overlay_grid_lines(
         image: Image.Image,
-        lines_x: list[int],
-        lines_y: list[int],
+        mesh: Mesh,
         line_color: tuple[int, int, int] = (255, 0, 0),
         line_width: int = 1
         ) -> Image.Image:
     """
-    Overlay vertical (lines_x) and horizontal (lines_y) grid lines over image for visualization.
+    Overlay mesh which includes vertical (lines_x) and horizontal (lines_y) grid lines
+    over image for visualization.
     """
     # Ensure we draw on an RGBA canvas
     canvas = image.convert("RGBA")
     draw = ImageDraw.Draw(canvas)
+
+    lines_x, lines_y = mesh
 
     w, h = canvas.size
     # Draw each vertical line

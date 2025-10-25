@@ -4,7 +4,7 @@ import numpy as np
 from proper_pixel_art import colors, mesh, utils
 
 def downsample(image: Image.Image,
-               mesh_lines: tuple[list[int], list[int]],
+               mesh_lines: mesh.Mesh,
                transparent_background: bool = False) -> Image.Image:
     """
     Downsample the image by looping over each cell in mesh and
