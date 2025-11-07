@@ -4,9 +4,10 @@ from pathlib import Path
 from PIL import Image
 import numpy as np
 from proper_pixel_art import colors, mesh, utils
+from proper_pixel_art.utils import Mesh
 
 def downsample(image: Image.Image,
-               mesh_lines: mesh.Mesh,
+               mesh_lines: Mesh,
                transparent_background: bool = False) -> Image.Image:
     """
     Downsample the image by looping over each cell in mesh and
@@ -89,30 +90,51 @@ def pixelate(
     return result
 
 def main():
+    from PIL import ImageSequence
+    from tqdm import tqdm
     data_dir = Path.cwd() / "assets"
+    gif_path = data_dir / "warrior" / "warrior.gif"
+    frames = Image.open(gif_path)
+    processed_frames = []
+    durations = []
+    for frame in tqdm(list(ImageSequence.Iterator(frames))):
+        pixelated_frame = pixelate(frame, num_colors=64, scale_result=10, initial_upscale_factor=2)
+        processed_frames.append(pixelated_frame)
+        duration = frame.info.get("duration", None)
+        durations.append(duration)
 
-    img_paths_and_colors = [
-        (data_dir / "blob" / "blob.png", 16),
-        (data_dir / "bat" / "bat.png", 16),
-        (data_dir / "demon" / "demon.png", 64),
-        (data_dir / "ash" / "ash.png", 16),
-        (data_dir / "pumpkin" / "pumpkin.png", 32),
-        (data_dir / "mountain" / "mountain.png", 64),
-        (data_dir / "anchor" / "anchor.png", 16),
-        ]
+    processed_frames[0].save(
+        Path.cwd()/f"pixelated_{gif_path.stem}.gif",
+        save_all=True,
+        append_images=processed_frames[1:],
+        duration=durations,
+        loop=0,
+        disposal=2,
+        optimize=False,
+    )
+    # img_paths_and_colors = [
+    #     (data_dir / "blob" / "blob.png", 16),
+    #     (data_dir / "bat" / "bat.png", 16),
+    #     (data_dir / "demon" / "demon.png", 64),
+    #     (data_dir / "ash" / "ash.png", 16),
+    #     (data_dir / "pumpkin" / "pumpkin.png", 32),
+    #     (data_dir / "mountain" / "mountain.png", 64),
+    #     (data_dir / "anchor" / "anchor.png", 16),
+    #     ]
 
-    for img_path, num_colors in img_paths_and_colors:
-        output_dir = Path.cwd() / "output" / img_path.stem
-        output_dir.mkdir(exist_ok=True, parents=True)
-        img = Image.open(img_path)
-        result = pixelate(
-            img,
-            scale_result = 20,
-            num_colors = num_colors,
-            transparent_background = True,
-            intermediate_dir = output_dir,
-            )
-        result.save(output_dir / "result.png")
+    # for img_path, num_colors in img_paths_and_colors:
+    #     output_dir = Path.cwd() / "output" / img_path.stem
+    #     output_dir.mkdir(exist_ok=True, parents=True)
+    #     img = Image.open(img_path)
+    #     result = pixelate(
+    #         img,
+    #         scale_result = 20,
+    #         num_colors = num_colors,
+    #         transparent_background = True,
+    #         intermediate_dir = output_dir,
+    #         )
+    #     result.save(output_dir / "result.png")
+
 
 if __name__ == "__main__":
     main()
