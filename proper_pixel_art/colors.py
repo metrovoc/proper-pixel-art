@@ -1,6 +1,4 @@
-"""
-Contains logic for handling image
-"""
+"""Handles image colors logic"""
 
 from pathlib import Path
 from collections import Counter

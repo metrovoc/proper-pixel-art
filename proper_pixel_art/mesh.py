@@ -1,6 +1,4 @@
-"""
-Handles mesh detection from pixel art style images
-"""
+"""Handles mesh detection from pixel art style images"""
 
 from pathlib import Path
 from PIL import Image

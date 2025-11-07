@@ -1,3 +1,5 @@
+"""Main functions for pixelating an image with the pixelate function"""
+
 from pathlib import Path
 from PIL import Image
 import numpy as np
@@ -9,7 +11,7 @@ def downsample(image: Image.Image,
     """
     Downsample the image by looping over each cell in mesh and
     using the most common color as the pixel color.
-    If transparent_background is True, flood fill each corner of the image with 0 alpha.
+    Optionally make background of the image transparent.
     """
     lines_x, lines_y = mesh_lines
     rgb = image.convert("RGB")

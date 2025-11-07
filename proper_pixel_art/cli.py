@@ -1,4 +1,5 @@
 """Command line interface"""
+
 import argparse
 from pathlib import Path
 from PIL import Image

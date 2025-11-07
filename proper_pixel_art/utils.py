@@ -1,4 +1,5 @@
 """Utility functions"""
+
 from PIL import Image, ImageDraw
 
 Lines = list[int] # Lines are a list of pixel indices for an image
