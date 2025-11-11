@@ -11,12 +11,17 @@ def parse_args() -> argparse.Namespace:
         description="Generate a true-resolution pixel-art image from a source image."
     )
     parser.add_argument(
+        "input_path",
+        type=Path,
+        nargs="?",
+        help="Path to the source input file."
+    )
+    parser.add_argument(
         "-i",
         "--input",
-        dest="img_path",
+        dest="input_path_flag",
         type=Path,
-        required=True,
-        help="Path to the source image file.",
+        help="Path to the source input file.",
     )
     parser.add_argument(
         "-o",
@@ -70,7 +75,14 @@ def parse_args() -> argparse.Namespace:
             "it may be useful to increase this value."
         ),
     )
-    return parser.parse_args()
+    args = parser.parse_args()
+
+    # Either take the input as the first argument or use the -i flag
+    if args.input_path is None and args.input_path_flag is None:
+        parser.error("You must provide an input path (positional or with -i).")
+    args.input_path = args.input_path if args.input_path is not None else args.input_path_flag
+
+    return args
 
 
 def resolve_output_path(
@@ -88,11 +100,12 @@ def resolve_output_path(
 
 def main() -> None:
     args = parse_args()
-    img_path = Path(args.img_path)
-    out_path = resolve_output_path(Path(args.out_path), img_path)
+    input_path = Path(args.input_path).expanduser()
+
+    out_path = resolve_output_path(Path(args.out_path), input_path)
     out_path.parent.mkdir(exist_ok=True, parents=True)
 
-    img = Image.open(img_path)
+    img = Image.open(input_path)
     pixelated = pixelate.pixelate(
         img,
         num_colors=args.num_colors,
