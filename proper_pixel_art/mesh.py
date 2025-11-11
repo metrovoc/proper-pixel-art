@@ -241,4 +241,6 @@ def _is_trivial_mesh(img_mesh: Mesh) -> bool:
     That is, the points in mesh_x and mesh_y conist of the left, right, and top, bottom
     of the image respectively.
     """
-    return len(img_mesh[0]) == 2 and len(img_mesh[1]) == 2
+    x_num = len(img_mesh[0])
+    y_num = len(img_mesh[1])
+    return x_num in (2, 3) and y_num in (2, 3)
