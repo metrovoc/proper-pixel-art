@@ -11,10 +11,7 @@ def parse_args() -> argparse.Namespace:
         description="Generate a true-resolution pixel-art image from a source image."
     )
     parser.add_argument(
-        "input_path",
-        type=Path,
-        nargs="?",
-        help="Path to the source input file."
+        "input_path", type=Path, nargs="?", help="Path to the source input file."
     )
     parser.add_argument(
         "-i",
@@ -80,7 +77,9 @@ def parse_args() -> argparse.Namespace:
     # Either take the input as the first argument or use the -i flag
     if args.input_path is None and args.input_path_flag is None:
         parser.error("You must provide an input path (positional or with -i).")
-    args.input_path = args.input_path if args.input_path is not None else args.input_path_flag
+    args.input_path = (
+        args.input_path if args.input_path is not None else args.input_path_flag
+    )
 
     return args
 

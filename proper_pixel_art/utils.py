@@ -70,6 +70,7 @@ def extract_frames_gif(path: str) -> Iterator[tuple[Image.Image, int]]:
         duration_ms = frame.info.get("duration", 10)
         yield frame.convert("RGB"), duration_ms
 
+
 def extract_frames_mp4(path: str) -> Iterator[tuple[Image.Image, int]]:
     """
     Extracts the frames from a .mp4 file.
@@ -88,6 +89,7 @@ def extract_frames_mp4(path: str) -> Iterator[tuple[Image.Image, int]]:
         frame_rgb = cv2.cvtColor(frame, cv2.COLOR_BGR2RGB)
         yield Image.fromarray(frame_rgb), duration_ms
     cap.release()
+
 
 def extract_frames(path: Path) -> Iterator[tuple[Image.Image, int]]:
     """
