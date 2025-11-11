@@ -1,68 +1,70 @@
 from pathlib import Path
 import pytest
 
-@pytest.fixture(name='assets')
+
+@pytest.fixture(name="assets")
 def fixture_assets() -> Path:
-    assets = Path.cwd() / 'assets'
+    assets = Path.cwd() / "assets"
     return assets
 
-@pytest.fixture(name='pixelate_png_test_params')
+
+@pytest.fixture(name="pixelate_png_test_params")
 def fixture_pixelate_png_test_params(assets: Path) -> dict[str, dict]:
     pixelate_png_test_params = {
         "anchor": {
             "num_colors": 16,
             "result_scale": 5,
             "transparent_background": True,
-            "path": assets/'anchor'/'anchor.png',
-            },
+            "path": assets / "anchor" / "anchor.png",
+        },
         "ash": {
             "num_colors": 16,
             "result_scale": 5,
             "transparent_background": False,
-            "path": assets / 'ash' / 'ash.png',
-            },
+            "path": assets / "ash" / "ash.png",
+        },
         "bat": {
             "num_colors": 16,
             "result_scale": 5,
             "transparent_background": True,
-            "path": assets/'bat'/'bat.png',
-            },
+            "path": assets / "bat" / "bat.png",
+        },
         "blob": {
             "num_colors": 16,
             "result_scale": 5,
             "transparent_background": True,
-            "path": assets/'blob'/'blob.png',
-            },
+            "path": assets / "blob" / "blob.png",
+        },
         "demon": {
             "num_colors": 64,
             "result_scale": 5,
             "transparent_background": True,
-            "path": assets/'demon'/'demon.png',
-            },
+            "path": assets / "demon" / "demon.png",
+        },
         "mountain": {
             "num_colors": 64,
             "result_scale": 5,
             "transparent_background": False,
-            "path": assets/'mountain'/'mountain.png',
-            },
+            "path": assets / "mountain" / "mountain.png",
+        },
         "pumpkin": {
             "num_colors": 32,
             "result_scale": 5,
             "transparent_background": False,
-            "path": assets/'pumpkin'/'pumpkin.png',
-            },
-
+            "path": assets / "pumpkin" / "pumpkin.png",
+        },
     }
     return pixelate_png_test_params
 
-@pytest.fixture(name='pixelate_gif_test_params')
+
+@pytest.fixture(name="pixelate_gif_test_params")
 def fixture_pixelate_gif_test_params(assets: Path) -> dict[str, dict]:
     pixelate_gif_test_params = {
         "anchor": {
             "num_colors": 32,
             "result_scale": 5,
             "transparent_background": False,
-            "path": assets/'warrior'/'warrior.gif',
-            },
+            "path": assets / "warrior" / "warrior.gif",
+        },
     }
     return pixelate_gif_test_params

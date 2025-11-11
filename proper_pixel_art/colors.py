@@ -8,20 +8,25 @@ import numpy as np
 
 RGB = tuple[int, int, int]
 
+
 def _rgb_dist(a: RGB, b: RGB) -> int:
     """Naive color distance"""
-    dr, dg, db = a[0]-b[0], a[1]-b[1], a[2]-b[2]
+    dr, dg, db = a[0] - b[0], a[1] - b[1], a[2] - b[2]
     return dr**2 + dg**2 + db**2
 
-def _top_opaque_colors(img: Image.Image, alpha_threshold: int, limit: int = 8) -> list[RGB]:
+
+def _top_opaque_colors(
+    img: Image.Image, alpha_threshold: int, limit: int = 8
+) -> list[RGB]:
     """Return the most common opaque colors (RGB) up to limit."""
     rgba = img.convert("RGBA").copy()
-    rgba.thumbnail((160, 160)) # speed and de-noise tiny details
+    rgba.thumbnail((160, 160))  # speed and de-noise tiny details
     counts = Counter()
     for r, g, b, a in rgba.getdata():
         if a >= alpha_threshold:
             counts[(r, g, b)] += 1
     return [c for c, _ in counts.most_common(limit)]
+
 
 def _pick_background(colors: list[RGB]) -> RGB:
     """
@@ -30,18 +35,18 @@ def _pick_background(colors: list[RGB]) -> RGB:
     with the actual colors in the image
     """
     background_color_candidates: list[RGB] = [
-        (0, 255, 255),   # cyan
-        (255, 255, 255), # white
-        (255, 0, 0),     # red
-        (0, 255, 0),     # green
-        (0, 0, 255),     # blue
-        (255, 255, 0),   # yellow
-        (255, 0, 255),   # magenta
-        (255, 128, 0),   # orange
-        (128, 0, 255),   # violet
-        (0, 128, 255),   # sky
-        (0, 255, 128),   # mint
-        (255, 0, 128),   # pink
+        (0, 255, 255),  # cyan
+        (255, 255, 255),  # white
+        (255, 0, 0),  # red
+        (0, 255, 0),  # green
+        (0, 0, 255),  # blue
+        (255, 255, 0),  # yellow
+        (255, 0, 255),  # magenta
+        (255, 128, 0),  # orange
+        (128, 0, 255),  # violet
+        (0, 128, 255),  # sky
+        (0, 255, 128),  # mint
+        (255, 0, 128),  # pink
     ]
 
     if not colors:
@@ -53,12 +58,13 @@ def _pick_background(colors: list[RGB]) -> RGB:
             best, best_score = color_candidate, score
     return best
 
+
 def clamp_alpha(
     image: Image.Image,
     alpha_threshold: int = 128,
     mode: str = "RGB",
-    background_hex: str | None = None
-    ) -> Image.Image:
+    background_hex: str | None = None,
+) -> Image.Image:
     """
     Replace pixels with alpha < threshold by a background color.
     If background_hex is None, choose a color far from the most common image colors.
@@ -81,6 +87,7 @@ def clamp_alpha(
 
     return Image.composite(base, background, mask)
 
+
 def get_cell_color(cell_pixels: np.ndarray) -> RGB:
     """
     cell_pixels: shape (height_cell, width_cell, 3), dtype=uint8
@@ -91,11 +98,13 @@ def get_cell_color(cell_pixels: np.ndarray) -> RGB:
     cell_color = Counter(flat).most_common(1)[0][0]
     return cell_color
 
+
 def palette_img(
-        image: Image.Image,
-        num_colors: int = 16,
-        quantize_method: int = Quantize.MAXCOVERAGE,
-        output_dir: Path | None = None) -> Image.Image:
+    image: Image.Image,
+    num_colors: int = 16,
+    quantize_method: int = Quantize.MAXCOVERAGE,
+    output_dir: Path | None = None,
+) -> Image.Image:
     """
     Discretizes the colors in the image to at most num_colors.
     Saves the quantized image to output_dir if not None.
@@ -109,11 +118,14 @@ def palette_img(
 
     If the colors of the result don't look right, try increasing num_colors.
     """
-    image_rgb = clamp_alpha(image, mode='RGB')
-    quantized_img = image_rgb.quantize(colors=num_colors, method=quantize_method, dither=Image.Dither.NONE)
+    image_rgb = clamp_alpha(image, mode="RGB")
+    quantized_img = image_rgb.quantize(
+        colors=num_colors, method=quantize_method, dither=Image.Dither.NONE
+    )
     if output_dir is not None:
         quantized_img.save(output_dir / "quantized_original.png")
     return quantized_img
+
 
 def most_common_boundary_color(image: Image.Image) -> RGB:
     """
@@ -131,7 +143,8 @@ def most_common_boundary_color(image: Image.Image) -> RGB:
 
     counts = Counter(top + bottom + left + right)
     mode_color = counts.most_common(1)[0][0]
-    return mode_color # (R, G, B)
+    return mode_color  # (R, G, B)
+
 
 def make_background_transparent(image: Image.Image) -> Image.Image:
     """
@@ -144,7 +157,7 @@ def make_background_transparent(image: Image.Image) -> Image.Image:
     px = list(image_rgba.getdata())
 
     out = []
-    for (r, g, b, a) in px:
+    for r, g, b, a in px:
         # If the color is the same as the background color, make it transparent
         if (r, g, b) == background_color:
             out.append((r, g, b, 0))
@@ -154,11 +167,13 @@ def make_background_transparent(image: Image.Image) -> Image.Image:
     image_rgba.putdata(out)
     return image_rgba
 
+
 def main():
     img_path = Path.cwd() / "assets" / "blob" / "blob.png"
     img = Image.open(img_path).convert("RGBA")
     paletted = palette_img(img)
     paletted.show()
+
 
 if __name__ == "__main__":
     main()

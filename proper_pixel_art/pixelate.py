@@ -6,9 +6,10 @@ import numpy as np
 from proper_pixel_art import colors, mesh, utils
 from proper_pixel_art.utils import Mesh
 
-def downsample(image: Image.Image,
-               mesh_lines: Mesh,
-               transparent_background: bool = False) -> Image.Image:
+
+def downsample(
+    image: Image.Image, mesh_lines: Mesh, transparent_background: bool = False
+) -> Image.Image:
     """
     Downsample the image by looping over each cell in mesh and
     using the most common color as the pixel color.
@@ -22,8 +23,8 @@ def downsample(image: Image.Image,
 
     for j in range(h_new):
         for i in range(w_new):
-            x0, x1 = lines_x[i], lines_x[i+1]
-            y0, y1 = lines_y[j], lines_y[j+1]
+            x0, x1 = lines_x[i], lines_x[i + 1]
+            y0, y1 = lines_y[j], lines_y[j + 1]
             cell = rgb_array[y0:y1, x0:x1]
             out[j, i] = colors.get_cell_color(cell)
 
@@ -32,15 +33,16 @@ def downsample(image: Image.Image,
         result = colors.make_background_transparent(result)
     return result
 
+
 def pixelate(
-        image: Image.Image,
-        num_colors: int = 16,
-        initial_upscale_factor: int = 2,
-        scale_result: int | None = None,
-        transparent_background: bool = False,
-        intermediate_dir: Path | None = None,
-        pixel_width: int | None = None
-        ) -> Image.Image:
+    image: Image.Image,
+    num_colors: int = 16,
+    initial_upscale_factor: int = 2,
+    scale_result: int | None = None,
+    transparent_background: bool = False,
+    intermediate_dir: Path | None = None,
+    pixel_width: int | None = None,
+) -> Image.Image:
     """
     Computes the true resolution pixel art image.
     inputs:
@@ -71,17 +73,21 @@ def pixelate(
         image_rgba,
         initial_upscale_factor,
         output_dir=intermediate_dir,
-        pixel_width=pixel_width
+        pixel_width=pixel_width,
     )
 
     # Calculate the color palette
-    paletted_img = colors.palette_img(image_rgba, num_colors=num_colors, output_dir=intermediate_dir)
+    paletted_img = colors.palette_img(
+        image_rgba, num_colors=num_colors, output_dir=intermediate_dir
+    )
 
     # Scale the paletted image to match the dimensions for the calculated mesh
     scaled_paletted_img = utils.scale_img(paletted_img, upscale_factor)
 
     # Downsample the image to 1 pixel per cell in the mesh
-    result = downsample(scaled_paletted_img, mesh_lines, transparent_background=transparent_background)
+    result = downsample(
+        scaled_paletted_img, mesh_lines, transparent_background=transparent_background
+    )
 
     # upscale the result if scale_result is set to an integer
     if scale_result is not None:
@@ -89,22 +95,26 @@ def pixelate(
 
     return result
 
+
 def main():
     from PIL import ImageSequence
     from tqdm import tqdm
+
     data_dir = Path.cwd() / "assets"
-    gif_path = data_dir / "warrior" / "warrior.gif"
-    frames = Image.open(gif_path)
+    mp4_path = data_dir / "blob" / "animated_blob.mp4"
+    frames = Image.open(mp4_path)
     processed_frames = []
     durations = []
     for frame in tqdm(list(ImageSequence.Iterator(frames))):
-        pixelated_frame = pixelate(frame, num_colors=64, scale_result=10, initial_upscale_factor=2)
+        pixelated_frame = pixelate(
+            frame, num_colors=64, scale_result=10, initial_upscale_factor=2
+        )
         processed_frames.append(pixelated_frame)
         duration = frame.info.get("duration", None)
         durations.append(duration)
 
     processed_frames[0].save(
-        Path.cwd()/f"pixelated_{gif_path.stem}.gif",
+        Path.cwd() / f"pixelated_{mp4_path.stem}.gif",
         save_all=True,
         append_images=processed_frames[1:],
         duration=durations,

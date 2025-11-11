@@ -7,6 +7,7 @@ import cv2
 from proper_pixel_art import utils, colors
 from proper_pixel_art.utils import Lines, Mesh
 
+
 def close_edges(edges: np.ndarray, kernel_size: int = 10) -> np.ndarray:
     """
     Apply a morphological closing to fill small gaps in edge map.
@@ -15,6 +16,7 @@ def close_edges(edges: np.ndarray, kernel_size: int = 10) -> np.ndarray:
     kernel = cv2.getStructuringElement(cv2.MORPH_RECT, (kernel_size, kernel_size))
     closed = cv2.morphologyEx(edges, cv2.MORPH_CLOSE, kernel)
     return closed
+
 
 def cluster_lines(lines: Lines, threshold: int = 4) -> Lines:
     """Remove lines that are too close to each other by clustering near values"""
@@ -30,50 +32,57 @@ def cluster_lines(lines: Lines, threshold: int = 4) -> Lines:
     # use the median of each cluster
     return [int(np.median(cluster)) for cluster in clusters]
 
-def detect_grid_lines(edges: np.ndarray,
-                      hough_rho: float = 1.0,
-                      hough_theta_rad: float = np.deg2rad(1),
-                      hough_threshold: int = 100,
-                      hough_min_line_len: int = 50,
-                      hough_max_line_gap: int = 10,
-                      angle_threshold_deg = 15
-                     ) -> Mesh:
+
+def detect_grid_lines(
+    edges: np.ndarray,
+    hough_rho: float = 1.0,
+    hough_theta_rad: float = np.deg2rad(1),
+    hough_threshold: int = 100,
+    hough_min_line_len: int = 50,
+    hough_max_line_gap: int = 10,
+    angle_threshold_deg=15,
+) -> Mesh:
     """
     - Use Hough line transformation to detect the pixel edges.
     - Only keep lines that are close to vertical or horizontal
-    - Cluster the lines so they aren't too close 
+    - Cluster the lines so they aren't too close
     Return:
     - two lists: x-coordinates (vertical lines) and y-coordinates (horizontal lines)
     """
-    hough_lines = cv2.HoughLinesP(edges,
-                                  hough_rho,
-                                  hough_theta_rad,
-                                  hough_threshold,
-                                  minLineLength=hough_min_line_len,
-                                  maxLineGap=hough_max_line_gap)
+    hough_lines = cv2.HoughLinesP(
+        edges,
+        hough_rho,
+        hough_theta_rad,
+        hough_threshold,
+        minLineLength=hough_min_line_len,
+        maxLineGap=hough_max_line_gap,
+    )
 
     height, width = edges.shape
     # Include the sides of the image in lines since they aren't detected by the Hough transform
-    lines_x, lines_y = [0, width-1], [0, height-1]
+    lines_x, lines_y = [0, width - 1], [0, height - 1]
     if hough_lines is None:
         return lines_x, lines_y
 
     # Loop over all detected lines, only keep the ones that are close to vertical or horizontal
-    for x1, y1, x2, y2 in hough_lines[:,0]:
+    for x1, y1, x2, y2 in hough_lines[:, 0]:
         dx, dy = x2 - x1, y2 - y1
         angle = abs(np.arctan2(dy, dx))
         # vertical if angle > 90-threshold, horizontal if angle < threshold
-        if angle > np.deg2rad(90-angle_threshold_deg):
-            lines_x.append(round((x1 + x2)/2))
+        if angle > np.deg2rad(90 - angle_threshold_deg):
+            lines_x.append(round((x1 + x2) / 2))
         elif angle < np.deg2rad(angle_threshold_deg):
-            lines_y.append(round((y1 + y2)/2))
+            lines_y.append(round((y1 + y2) / 2))
 
     # Finally cluster the lines so they aren't too close to each other
     clustered_lines_x = cluster_lines(lines_x)
     clustered_lines_y = cluster_lines(lines_y)
     return clustered_lines_x, clustered_lines_y
 
-def get_pixel_width(line_collection: list[Lines], trim_outlier_fraction: float = 0.2) -> int:
+
+def get_pixel_width(
+    line_collection: list[Lines], trim_outlier_fraction: float = 0.2
+) -> int:
     """
     Takes list of line coordinates, and outlier fraction.
     Returns the predicted pixel width by filtering outliers and taking the median.
@@ -103,6 +112,7 @@ def get_pixel_width(line_collection: list[Lines], trim_outlier_fraction: float =
 
     return np.median(middle)
 
+
 def homogenize_lines(lines: Lines, pixel_width: int) -> Lines:
     """
     Given sorted line coords and pixel width,
@@ -118,7 +128,9 @@ def homogenize_lines(lines: Lines, pixel_width: int) -> Lines:
         else:
             section_pixel_width = section_width / num_pixels
         line_start = lines[index]
-        section_lines = [line_start + int(n*section_pixel_width) for n in range(num_pixels)]
+        section_lines = [
+            line_start + int(n * section_pixel_width) for n in range(num_pixels)
+        ]
         # Replace the start index in completed lines with list of new line coordinates
         # Everything will be unpacked after to maintain indexes
         complete_lines[index] = section_lines
@@ -129,13 +141,14 @@ def homogenize_lines(lines: Lines, pixel_width: int) -> Lines:
 
     return complete_lines
 
+
 def compute_mesh(
-        img: Image.Image,
-        canny_thresholds: tuple[int] = (50, 200),
-        closure_kernel_size: int = 8,
-        output_dir: Path | None = None,
-        pixel_width: int | None = None
-        ) -> Mesh:
+    img: Image.Image,
+    canny_thresholds: tuple[int] = (50, 200),
+    closure_kernel_size: int = 8,
+    output_dir: Path | None = None,
+    pixel_width: int | None = None,
+) -> Mesh:
     """
     Finds grid lines of a high resolution noisy image.
     - Uses Canny edge detector to find vertical and horizontal edges
@@ -148,7 +161,7 @@ def compute_mesh(
         canny_thresholds: thresholds 1 and 2 for canny edge detection algorithm
         closure_kernel_size: Kernel size for the morphological closure
         output_dir (optional): If set, saves images of steps in algorithm to dir
-    
+
     output:
         Returns The pixel mesh: mesh_x, mesh_y
             tuple of two lists of integer coordinates ():
@@ -160,7 +173,7 @@ def compute_mesh(
     """
     # Crop border and zero out mostly transparent pixels from alpha
     cropped_img = utils.crop_border(img, num_pixels=2)
-    grey_img = colors.clamp_alpha(cropped_img, mode='L')
+    grey_img = colors.clamp_alpha(cropped_img, mode="L")
 
     # Find edges using Canny edge detection
     edges = cv2.Canny(np.array(grey_img), *canny_thresholds)
@@ -194,12 +207,13 @@ def compute_mesh(
 
     return mesh_final
 
+
 def compute_mesh_with_scaling(
-        img: Image.Image,
-        upscale_factor: int,
-        output_dir: Path | None = None,
-        pixel_width: int | None = None
-        ) -> tuple[Mesh, int]:
+    img: Image.Image,
+    upscale_factor: int,
+    output_dir: Path | None = None,
+    pixel_width: int | None = None,
+) -> tuple[Mesh, int]:
     """
     Try to compute the mesh on on the image.
     First upscale the image with a given upscale factor
@@ -219,6 +233,7 @@ def compute_mesh_with_scaling(
         img, output_dir=output_dir, pixel_width=pixel_width
     )
     return fallback_mesh_lines, 1
+
 
 def _is_trivial_mesh(img_mesh: Mesh) -> bool:
     """
