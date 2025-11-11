@@ -97,15 +97,16 @@ def pixelate(
 
 
 def main():
-    from PIL import ImageSequence
     from tqdm import tqdm
 
     data_dir = Path.cwd() / "assets"
-    mp4_path = data_dir / "blob" / "animated_blob.mp4"
-    frames = Image.open(mp4_path)
-    processed_frames = []
+    input_path = data_dir / "blob" / "animated_blob.mp4"
+    frames = utils.extract_frames(input_path)
+
+    processed_frames: list[Image.Image] = []
     durations = []
-    for frame in tqdm(list(ImageSequence.Iterator(frames))):
+
+    for frame, duration in tqdm(list(frames)):
         pixelated_frame = pixelate(
             frame, num_colors=64, scale_result=10, initial_upscale_factor=2
         )
@@ -114,7 +115,7 @@ def main():
         durations.append(duration)
 
     processed_frames[0].save(
-        Path.cwd() / f"pixelated_{mp4_path.stem}.gif",
+        Path.cwd() / f"pixelated_{input_path.stem}.gif",
         save_all=True,
         append_images=processed_frames[1:],
         duration=durations,
