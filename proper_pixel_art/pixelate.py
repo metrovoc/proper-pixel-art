@@ -104,18 +104,38 @@ def main():
     frames = utils.extract_frames(input_path)
 
     processed_frames: list[Image.Image] = []
-    durations = []
+    durations: list[int] = []
 
-    for frame, duration in tqdm(list(frames)):
+    out_dir = Path.cwd() / "output" / "blob_test"
+    out_dir.mkdir(exist_ok=True)
+
+    list_frames = [frame[0] for frame in frames]
+    frame = utils.concat_images(list_frames[:40], ax=1)
+    pixelated_frame = pixelate(
+        frame,
+        num_colors=64,
+        scale_result=10,
+        initial_upscale_factor=1,
+        intermediate_dir=out_dir,
+    )
+
+    for index, (frame, duration) in enumerate(tqdm(list(frames))):
+        intermediate_dir = out_dir / str(index)
+        intermediate_dir.mkdir(exist_ok=True)
         pixelated_frame = pixelate(
-            frame, num_colors=64, scale_result=10, initial_upscale_factor=2
+            frame,
+            num_colors=64,
+            scale_result=10,
+            initial_upscale_factor=1,
+            intermediate_dir=intermediate_dir,
         )
         processed_frames.append(pixelated_frame)
-        duration = frame.info.get("duration", None)
         durations.append(duration)
+        if index == 20:
+            break
 
     processed_frames[0].save(
-        Path.cwd() / f"pixelated_{input_path.stem}.gif",
+        out_dir / f"pixelated_{input_path.stem}.gif",
         save_all=True,
         append_images=processed_frames[1:],
         duration=durations,
@@ -123,28 +143,6 @@ def main():
         disposal=2,
         optimize=False,
     )
-    # img_paths_and_colors = [
-    #     (data_dir / "blob" / "blob.png", 16),
-    #     (data_dir / "bat" / "bat.png", 16),
-    #     (data_dir / "demon" / "demon.png", 64),
-    #     (data_dir / "ash" / "ash.png", 16),
-    #     (data_dir / "pumpkin" / "pumpkin.png", 32),
-    #     (data_dir / "mountain" / "mountain.png", 64),
-    #     (data_dir / "anchor" / "anchor.png", 16),
-    #     ]
-
-    # for img_path, num_colors in img_paths_and_colors:
-    #     output_dir = Path.cwd() / "output" / img_path.stem
-    #     output_dir.mkdir(exist_ok=True, parents=True)
-    #     img = Image.open(img_path)
-    #     result = pixelate(
-    #         img,
-    #         scale_result = 20,
-    #         num_colors = num_colors,
-    #         transparent_background = True,
-    #         intermediate_dir = output_dir,
-    #         )
-    #     result.save(output_dir / "result.png")
 
 
 if __name__ == "__main__":
