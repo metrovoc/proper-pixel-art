@@ -117,8 +117,8 @@ def parse_args() -> argparse.Namespace:
         "--center-ratio",
         dest="center_ratio",
         type=float,
-        default=1.0,
-        help="Sample only center portion of each cell (0.0-1.0). Reduces edge noise. Default: 1.0",
+        default=0.5,
+        help="Sample only center portion of each cell (0.5-1.0). Reduces edge noise. Rarely needs adjustment. Default: 0.5",
     )
 
     args = parser.parse_args()

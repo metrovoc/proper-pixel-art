@@ -16,7 +16,7 @@ PipelineOrder = Literal["quantize_first", "downsample_first"]
 def downsample(
     image: Image.Image,
     mesh_lines: Mesh,
-    center_ratio: float = 1.0,
+    center_ratio: float = 0.5,
 ) -> Image.Image:
     """
     Downsample the image by looping over each cell in mesh and
@@ -25,8 +25,8 @@ def downsample(
     Args:
         image: Input image
         mesh_lines: (lines_x, lines_y) grid coordinates
-        center_ratio: Sample only the center portion of each cell (0.0-1.0).
-                      1.0 = entire cell, 0.5 = center 50%. Helps reduce edge noise.
+        center_ratio: Sample only the center portion of each cell (0.5-1.0).
+                      0.5 = center 50%, 1.0 = entire cell. Reduces edge noise.
     """
     lines_x, lines_y = mesh_lines
     rgb = image.convert("RGB")
@@ -69,7 +69,7 @@ def pixelate(
     # New parameters for pipeline configuration
     pipeline: PipelineOrder = "quantize_first",
     quantizer: Quantizer | None = None,
-    center_ratio: float = 1.0,
+    center_ratio: float = 0.5,
 ) -> Image.Image:
     """
     Computes the true resolution pixel art image.
@@ -106,8 +106,8 @@ def pixelate(
             clustering with automatic color count detection.
 
         center_ratio: When downsampling, only sample the center portion of each
-            cell (0.0-1.0). 1.0 = entire cell, 0.5 = center 50%. Reduces edge
-            noise from grid misalignment.
+            cell (0.5-1.0). 0.5 = center 50%, 1.0 = entire cell. Reduces edge
+            noise from grid misalignment. Rarely needs adjustment.
 
     Returns:
         The true pixelated image.
