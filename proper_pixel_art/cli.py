@@ -44,27 +44,28 @@ def parse_args() -> argparse.Namespace:
         help="Upscale factor for mesh detection. Default: 2"
     )
 
-    # New options
+    # Algorithm options (new defaults: downsample_first + LAB clustering + auto colors)
     parser.add_argument(
-        "--downsample-first", dest="downsample_first", action="store_true",
-        help="Downsample then quantize (better colors). Default: quantize first"
+        "--no-downsample-first", dest="downsample_first", action="store_false",
+        help="Quantize then downsample (original behavior)"
     )
     parser.add_argument(
-        "--cluster", dest="use_cluster", action="store_true",
-        help="Use LAB-space clustering instead of PIL quantization"
+        "--no-cluster", dest="use_cluster", action="store_false",
+        help="Use PIL quantization instead of LAB clustering"
     )
     parser.add_argument(
-        "--auto-colors", dest="auto_colors", action="store_true",
-        help="Auto-detect color count (only with --cluster)"
+        "--no-auto-colors", dest="auto_colors", action="store_false",
+        help="Use fixed color count instead of auto-detection"
     )
     parser.add_argument(
         "--threshold", dest="threshold", type=float, default=5.0,
-        help="Color distance threshold for --auto-colors. Default: 5.0"
+        help="Color distance threshold for auto-colors (LAB Delta E). Default: 5.0"
     )
     parser.add_argument(
         "--center-ratio", dest="center_ratio", type=float, default=0.5,
         help="Sample center portion of cells (0.5-1.0). Default: 0.5"
     )
+    parser.set_defaults(downsample_first=True, use_cluster=True, auto_colors=True)
 
     args = parser.parse_args()
 

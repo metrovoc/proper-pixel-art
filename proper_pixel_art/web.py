@@ -67,8 +67,8 @@ def create_demo():
 
         # Main controls
         with gr.Row():
-            num_colors = gr.Slider(2, 64, value=16, step=1, label="Colors")
-            scale = gr.Slider(1, 20, value=1, step=1, label="Scale")
+            num_colors = gr.Slider(2, 64, value=16, step=1, label="Colors", interactive=False)
+            scale = gr.Slider(1, 20, value=20, step=1, label="Scale")
 
         with gr.Row():
             transparent = gr.Checkbox(value=False, label="Transparent Background")
@@ -82,21 +82,21 @@ def create_demo():
                     info="Better color accuracy. Disable to quantize first (original behavior)."
                 )
                 use_cluster = gr.Checkbox(
-                    value=False, label="LAB Clustering",
+                    value=True, label="LAB Clustering",
                     info="Perceptually uniform color quantization"
                 )
 
             with gr.Row():
                 auto_colors = gr.Checkbox(
-                    value=False, label="Auto Colors",
+                    value=True, label="Auto Colors",
                     info="Auto-detect color count (requires LAB Clustering)",
-                    interactive=False,  # use_cluster default False
+                    interactive=True,
                 )
                 threshold = gr.Slider(
                     1.0, 15.0, value=5.0, step=0.5,
                     label="Color Threshold",
                     info="LAB Delta E for merging colors (requires Auto Colors)",
-                    interactive=False,  # auto_colors default False
+                    interactive=True,
                 )
 
         # Advanced options
