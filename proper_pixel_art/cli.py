@@ -1,4 +1,4 @@
-"""Command line interface"""
+"""Command line interface."""
 
 import argparse
 from pathlib import Path
@@ -6,183 +6,109 @@ from pathlib import Path
 from PIL import Image
 
 from proper_pixel_art import pixelate
-from proper_pixel_art.quantize import ClusterQuantizer, PILQuantizer, Quantizer
+from proper_pixel_art.quantize import quantize_cluster, quantize_pil
 
 
 def parse_args() -> argparse.Namespace:
     parser = argparse.ArgumentParser(
-        description="Generate a true-resolution pixel-art image from a source image."
+        description="Convert pixel-art-style images to true pixel resolution."
     )
     parser.add_argument(
-        "input_path", type=Path, nargs="?", help="Path to the source input file."
+        "input_path", type=Path, nargs="?", help="Input image path"
     )
     parser.add_argument(
-        "-i",
-        "--input",
-        dest="input_path_flag",
-        type=Path,
-        help="Path to the source input file.",
+        "-i", "--input", dest="input_path_flag", type=Path, help="Input image path"
     )
     parser.add_argument(
-        "-o",
-        "--output",
-        dest="out_path",
-        type=Path,
-        default=".",
-        help="Path where the pixelated image will be saved. Can be either a directory or a file path.",
+        "-o", "--output", dest="out_path", type=Path, default=".",
+        help="Output path (directory or file). Default: current directory"
     )
     parser.add_argument(
-        "-c",
-        "--colors",
-        dest="num_colors",
-        type=int,
-        default=16,
-        help="Number of colors to quantize the image to. From 1 to 256. Ignored if --quantizer=cluster and --auto-colors is set.",
+        "-c", "--colors", dest="num_colors", type=int, default=16,
+        help="Number of colors (1-256). Default: 16"
     )
     parser.add_argument(
-        "-s",
-        "--scale-result",
-        dest="scale_result",
-        type=int,
-        default=1,
-        help="Width of the 'pixels' in the output image (default: 1).",
+        "-s", "--scale-result", dest="scale_result", type=int, default=1,
+        help="Upscale output by this factor. Default: 1"
     )
     parser.add_argument(
-        "-t",
-        "--transparent",
-        dest="transparent",
-        action="store_true",
-        default=False,
-        help="Produce a transparent background in the output if set.",
+        "-t", "--transparent", action="store_true",
+        help="Make background transparent"
     )
     parser.add_argument(
-        "-w",
-        "--pixel-width",
-        dest="pixel_width",
-        type=int,
-        default=None,
-        help="Width of the pixels in the input image. If not set, it will be determined automatically.",
+        "-w", "--pixel-width", dest="pixel_width", type=int, default=None,
+        help="Manual pixel width (default: auto-detect)"
     )
     parser.add_argument(
-        "-u",
-        "--initial-upscale",
-        dest="initial_upscale",
-        type=int,
-        default=2,
-        help=(
-            "Initial image upscale factor in mesh detection algorithm. "
-            "If the detected spacing is too large, "
-            "it may be useful to increase this value."
-        ),
+        "-u", "--initial-upscale", dest="initial_upscale", type=int, default=2,
+        help="Upscale factor for mesh detection. Default: 2"
     )
 
-    # New pipeline configuration options
+    # New options
     parser.add_argument(
-        "-p",
-        "--pipeline",
-        dest="pipeline",
-        choices=["quantize_first", "downsample_first"],
-        default="quantize_first",
-        help=(
-            "Processing order. 'quantize_first' (default): original algorithm. "
-            "'downsample_first': improved algorithm with better color accuracy."
-        ),
+        "--downsample-first", dest="downsample_first", action="store_true",
+        help="Downsample then quantize (better colors). Default: quantize first"
     )
     parser.add_argument(
-        "-q",
-        "--quantizer",
-        dest="quantizer",
-        choices=["pil", "cluster"],
-        default="pil",
-        help=(
-            "Quantization method. 'pil' (default): fast PIL-based. "
-            "'cluster': LAB-space clustering."
-        ),
+        "--cluster", dest="use_cluster", action="store_true",
+        help="Use LAB-space clustering instead of PIL quantization"
     )
     parser.add_argument(
-        "--auto-colors",
-        dest="auto_colors",
-        action="store_true",
-        default=False,
-        help="Automatically determine the number of colors (only with --quantizer=cluster).",
+        "--auto-colors", dest="auto_colors", action="store_true",
+        help="Auto-detect color count (only with --cluster)"
     )
     parser.add_argument(
-        "--color-threshold",
-        dest="color_threshold",
-        type=float,
-        default=5.0,
-        help="Color distance threshold for auto color detection (LAB Delta E). Default: 5.0",
+        "--threshold", dest="threshold", type=float, default=5.0,
+        help="Color distance threshold for --auto-colors. Default: 5.0"
     )
     parser.add_argument(
-        "--center-ratio",
-        dest="center_ratio",
-        type=float,
-        default=0.5,
-        help="Sample only center portion of each cell (0.5-1.0). Reduces edge noise. Rarely needs adjustment. Default: 0.5",
+        "--center-ratio", dest="center_ratio", type=float, default=0.5,
+        help="Sample center portion of cells (0.5-1.0). Default: 0.5"
     )
 
     args = parser.parse_args()
 
-    # Either take the input as the first argument or use the -i flag
+    # Resolve input path
     if args.input_path is None and args.input_path_flag is None:
-        parser.error("You must provide an input path (positional or with -i).")
-    args.input_path = (
-        args.input_path if args.input_path is not None else args.input_path_flag
-    )
+        parser.error("Input path required (positional or -i)")
+    args.input_path = args.input_path or args.input_path_flag
 
     return args
 
 
-def create_quantizer(args: argparse.Namespace) -> Quantizer:
-    """Create quantizer based on CLI arguments."""
-    if args.quantizer == "pil":
-        return PILQuantizer(num_colors=args.num_colors)
-
-    num_colors = None if args.auto_colors else args.num_colors
-    return ClusterQuantizer(
-        num_colors=num_colors,
-        distance_threshold=args.color_threshold,
-        color_space="lab",
-        representative="most_frequent",
-    )
-
-
-def resolve_output_path(
-    out_path: Path, input_path: Path, suffix: str = "_pixelated"
-) -> Path:
-    """
-    If outpath is a directory, make it a file path
-    with filename e.g. (input stem)_pixelated.png
-    """
+def resolve_output_path(out_path: Path, input_path: Path) -> Path:
+    """If out_path is a directory, create filename from input stem."""
     if out_path.suffix:
         return out_path
-    filename = f"{input_path.stem}{suffix}.png"
-    return out_path / filename
+    return out_path / f"{input_path.stem}_pixelated.png"
 
 
 def main() -> None:
     args = parse_args()
     input_path = Path(args.input_path).expanduser()
-
     out_path = resolve_output_path(Path(args.out_path), input_path)
     out_path.parent.mkdir(exist_ok=True, parents=True)
 
-    quantizer = create_quantizer(args)
+    # Build quantizer
+    if args.use_cluster:
+        num_colors = None if args.auto_colors else args.num_colors
+        quantizer = lambda img: quantize_cluster(img, num_colors, args.threshold)
+    else:
+        quantizer = lambda img: quantize_pil(img, args.num_colors)
 
     img = Image.open(input_path)
-    pixelated = pixelate.pixelate(
+    result = pixelate.pixelate(
         img,
         num_colors=args.num_colors,
-        scale_result=args.scale_result,
+        scale_result=args.scale_result if args.scale_result > 1 else None,
         transparent_background=args.transparent,
         pixel_width=args.pixel_width,
         initial_upscale_factor=args.initial_upscale,
-        pipeline=args.pipeline,
+        downsample_first=args.downsample_first,
         quantizer=quantizer,
         center_ratio=args.center_ratio,
     )
-
-    pixelated.save(out_path)
+    result.save(out_path)
 
 
 if __name__ == "__main__":

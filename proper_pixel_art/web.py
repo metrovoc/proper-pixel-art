@@ -1,64 +1,34 @@
-"""Web interface for Proper Pixel Art using Gradio."""
+"""Web interface using Gradio."""
 
 from PIL import Image
 
 from proper_pixel_art.pixelate import pixelate
-from proper_pixel_art.quantize import ClusterQuantizer, PILQuantizer, Quantizer
-
-IMG_HEIGHT = 512
-
-
-def create_quantizer(
-    method: str,
-    num_colors: int,
-    auto_colors: bool,
-    color_threshold: float,
-) -> Quantizer:
-    """Create quantizer based on UI selections."""
-    if method == "pil":
-        return PILQuantizer(num_colors=num_colors)
-
-    return ClusterQuantizer(
-        num_colors=None if auto_colors else num_colors,
-        distance_threshold=color_threshold,
-        color_space="lab",
-        representative="most_frequent",
-    )
+from proper_pixel_art.quantize import quantize_cluster, quantize_pil
 
 
 def process(
     image: Image.Image | None,
-    preset: str,
     num_colors: int,
     transparent: bool,
     scale: int,
     initial_upscale: int,
     pixel_width: int,
-    center_ratio: float,
+    downsample_first: bool,
+    use_cluster: bool,
     auto_colors: bool,
-    color_threshold: float,
+    threshold: float,
+    center_ratio: float,
 ) -> Image.Image | None:
     """Process image through pixelation pipeline."""
     if image is None:
         return None
 
-    # Determine pipeline and quantizer from preset
-    if preset == "fast":
-        pipeline = "quantize_first"
-        quantizer_method = "pil"
-    elif preset == "balanced":
-        pipeline = "downsample_first"
-        quantizer_method = "pil"
-    else:  # advanced
-        pipeline = "downsample_first"
-        quantizer_method = "cluster"
-
-    quantizer = create_quantizer(
-        method=quantizer_method,
-        num_colors=num_colors,
-        auto_colors=auto_colors,
-        color_threshold=color_threshold,
-    )
+    # Build quantizer
+    if use_cluster:
+        n = None if auto_colors else num_colors
+        quantizer = lambda img: quantize_cluster(img, n, threshold)
+    else:
+        quantizer = lambda img: quantize_pil(img, num_colors)
 
     return pixelate(
         image,
@@ -67,7 +37,7 @@ def process(
         scale_result=scale if scale > 1 else None,
         initial_upscale_factor=initial_upscale,
         pixel_width=pixel_width if pixel_width > 0 else None,
-        pipeline=pipeline,
+        downsample_first=downsample_first,
         quantizer=quantizer,
         center_ratio=center_ratio,
     )
@@ -77,19 +47,6 @@ def create_demo():
     """Create Gradio demo interface."""
     import gradio as gr
 
-    # Preset descriptions
-    preset_info = {
-        "fast": "**Fast**: Original algorithm. Quick but may produce slightly inaccurate colors.",
-        "balanced": "**Balanced**: Improved color accuracy. Recommended for most use cases.",
-        "advanced": "**Advanced**: LAB color space + clustering. Best quality, auto color detection available.",
-    }
-
-    # Dependency rules:
-    # - center_ratio: requires downsample_first (balanced, advanced)
-    # - auto_colors: requires cluster quantizer (advanced only)
-    # - color_threshold: requires auto_colors to be on
-    # - num_colors: disabled when auto_colors is on
-
     with gr.Blocks(title="Proper Pixel Art") as demo:
         gr.Markdown(
             "# Proper Pixel Art\n"
@@ -97,147 +54,90 @@ def create_demo():
         )
 
         with gr.Row():
-            with gr.Column(scale=1):
+            with gr.Column():
                 input_img = gr.Image(
-                    type="pil",
-                    label="Input",
-                    format="png",
-                    image_mode="RGBA",
-                    height=IMG_HEIGHT,
+                    type="pil", label="Input", format="png",
+                    image_mode="RGBA", height=512,
                 )
-            with gr.Column(scale=1):
+            with gr.Column():
                 output_img = gr.Image(
-                    type="pil",
-                    label="Output",
-                    format="png",
-                    image_mode="RGBA",
-                    height=IMG_HEIGHT,
-                    interactive=False,
+                    type="pil", label="Output", format="png",
+                    image_mode="RGBA", height=512, interactive=False,
                 )
 
         # Main controls
         with gr.Row():
-            preset = gr.Radio(
-                choices=["fast", "balanced", "advanced"],
-                value="balanced",
-                label="Mode",
-                info="Select processing mode",
-            )
-
-        preset_desc = gr.Markdown(preset_info["balanced"])
+            num_colors = gr.Slider(2, 64, value=16, step=1, label="Colors")
+            scale = gr.Slider(1, 20, value=1, step=1, label="Scale")
 
         with gr.Row():
-            num_colors = gr.Slider(
-                2,
-                64,
-                value=16,
-                step=1,
-                label="Colors",
-                info="Target number of colors",
-            )
-            scale = gr.Slider(
-                1, 20, value=1, step=1, label="Scale", info="Output upscaling factor"
-            )
-
-        with gr.Row():
-            transparent = gr.Checkbox(
-                value=False, label="Transparent Background", scale=1
-            )
+            transparent = gr.Checkbox(value=False, label="Transparent Background")
             btn = gr.Button("Pixelate", variant="primary", scale=2)
 
-        # Advanced options (collapsible)
-        with gr.Accordion("Advanced Options", open=False):
+        # Algorithm options
+        with gr.Accordion("Algorithm Options", open=False):
             with gr.Row():
-                initial_upscale = gr.Slider(
-                    1,
-                    4,
-                    value=2,
-                    step=1,
-                    label="Initial Upscale",
-                    info="Upscale factor for mesh detection",
+                downsample_first = gr.Checkbox(
+                    value=True, label="Downsample First",
+                    info="Better color accuracy. Disable to quantize first (original behavior)."
                 )
-                pixel_width = gr.Slider(
-                    0,
-                    50,
-                    value=0,
-                    step=1,
-                    label="Pixel Width",
-                    info="0 = auto detect",
-                )
-                center_ratio = gr.Slider(
-                    0.5,
-                    1.0,
-                    value=0.5,
-                    step=0.1,
-                    label="Center Ratio",
-                    info="Sample center of each cell (balanced/advanced only). Rarely needs adjustment.",
-                    interactive=True,  # balanced is default
+                use_cluster = gr.Checkbox(
+                    value=False, label="LAB Clustering",
+                    info="Perceptually uniform color quantization"
                 )
 
             with gr.Row():
                 auto_colors = gr.Checkbox(
-                    value=False,
-                    label="Auto Colors",
-                    info="Automatically determine color count (advanced only)",
-                    interactive=False,  # balanced is default
+                    value=False, label="Auto Colors",
+                    info="Auto-detect color count (requires LAB Clustering)",
+                    interactive=False,  # use_cluster default False
                 )
-                color_threshold = gr.Slider(
-                    1.0,
-                    15.0,
-                    value=5.0,
-                    step=0.5,
+                threshold = gr.Slider(
+                    1.0, 15.0, value=5.0, step=0.5,
                     label="Color Threshold",
-                    info="LAB Delta E threshold for merging colors (only when Auto Colors is on)",
-                    interactive=False,  # balanced is default
+                    info="LAB Delta E for merging colors (requires Auto Colors)",
+                    interactive=False,  # auto_colors default False
                 )
 
-        # Unified state update function
-        def update_ui_state(preset_value, auto_colors_value):
-            """Update all dependent UI elements based on current state."""
-            is_advanced = preset_value == "advanced"
-            uses_downsample = preset_value in ("balanced", "advanced")
-            auto_enabled = is_advanced and auto_colors_value
+        # Advanced options
+        with gr.Accordion("Advanced Options", open=False):
+            with gr.Row():
+                initial_upscale = gr.Slider(
+                    1, 4, value=2, step=1, label="Initial Upscale",
+                    info="Upscale factor for mesh detection"
+                )
+                pixel_width = gr.Slider(
+                    0, 50, value=0, step=1, label="Pixel Width",
+                    info="Manual pixel width (0 = auto detect)"
+                )
+                center_ratio = gr.Slider(
+                    0.5, 1.0, value=0.5, step=0.1, label="Center Ratio",
+                    info="Sample center of each cell to reduce edge noise. You probably don't need to change this (requires Downsample First)",
+                    interactive=True,  # downsample_first default True
+                )
 
+        # Unified UI state update
+        def update_ui(ds_first, cluster, auto):
             return (
-                # num_colors: disabled when auto_colors is on
-                gr.update(interactive=not auto_enabled),
-                # center_ratio: enabled for balanced/advanced
-                gr.update(interactive=uses_downsample),
-                # auto_colors: enabled for advanced only
-                gr.update(interactive=is_advanced),
-                # color_threshold: only used when auto_colors is on
-                gr.update(interactive=auto_enabled),
-                # preset description
-                preset_info[preset_value],
+                gr.update(interactive=not auto),        # num_colors: off when auto
+                gr.update(interactive=cluster),         # auto_colors: needs cluster
+                gr.update(interactive=cluster and auto),  # threshold: needs auto
+                gr.update(interactive=ds_first),        # center_ratio: needs ds_first
             )
 
-        # Single handler for preset changes
-        preset.change(
-            fn=lambda p: update_ui_state(p, False),  # reset auto_colors on preset change
-            inputs=[preset],
-            outputs=[num_colors, center_ratio, auto_colors, color_threshold, preset_desc],
-        )
-
-        # Handler for auto_colors changes
-        auto_colors.change(
-            fn=update_ui_state,
-            inputs=[preset, auto_colors],
-            outputs=[num_colors, center_ratio, auto_colors, color_threshold, preset_desc],
-        )
+        for ctrl in [downsample_first, use_cluster, auto_colors]:
+            ctrl.change(
+                fn=update_ui,
+                inputs=[downsample_first, use_cluster, auto_colors],
+                outputs=[num_colors, auto_colors, threshold, center_ratio],
+            )
 
         btn.click(
             fn=process,
             inputs=[
-                input_img,
-                preset,
-                num_colors,
-                transparent,
-                scale,
-                initial_upscale,
-                pixel_width,
-                center_ratio,
-                auto_colors,
-                color_threshold,
+                input_img, num_colors, transparent, scale,
+                initial_upscale, pixel_width, downsample_first,
+                use_cluster, auto_colors, threshold, center_ratio,
             ],
             outputs=output_img,
         )
@@ -247,8 +147,7 @@ def create_demo():
 
 def main():
     """Entry point for ppa-web command."""
-    demo = create_demo()
-    demo.launch()
+    create_demo().launch()
 
 
 if __name__ == "__main__":
