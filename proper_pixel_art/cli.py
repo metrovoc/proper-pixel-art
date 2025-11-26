@@ -90,6 +90,11 @@ def main() -> None:
     out_path = resolve_output_path(Path(args.out_path), input_path)
     out_path.parent.mkdir(exist_ok=True, parents=True)
 
+    # LAB clustering requires downsample_first (O(n²) memory on full image)
+    if args.use_cluster and not args.downsample_first:
+        print("Warning: LAB clustering disabled (requires --downsample-first due to O(n²) memory)")
+        args.use_cluster = False
+
     # Build quantizer
     if args.use_cluster:
         num_colors = None if args.auto_colors else args.num_colors
