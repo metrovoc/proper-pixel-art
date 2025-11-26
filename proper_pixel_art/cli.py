@@ -6,6 +6,7 @@ from pathlib import Path
 from PIL import Image
 
 from proper_pixel_art import pixelate
+from proper_pixel_art.quantize import ClusterQuantizer, PILQuantizer, Quantizer
 
 
 def parse_args() -> argparse.Namespace:
@@ -36,7 +37,7 @@ def parse_args() -> argparse.Namespace:
         dest="num_colors",
         type=int,
         default=16,
-        help="Number of colors to quantize the image to. From 1 to 256",
+        help="Number of colors to quantize the image to. From 1 to 256. Ignored if --quantizer=cluster and --auto-colors is set.",
     )
     parser.add_argument(
         "-s",
@@ -74,6 +75,52 @@ def parse_args() -> argparse.Namespace:
             "it may be useful to increase this value."
         ),
     )
+
+    # New pipeline configuration options
+    parser.add_argument(
+        "-p",
+        "--pipeline",
+        dest="pipeline",
+        choices=["quantize_first", "downsample_first"],
+        default="quantize_first",
+        help=(
+            "Processing order. 'quantize_first' (default): original algorithm. "
+            "'downsample_first': improved algorithm with better color accuracy."
+        ),
+    )
+    parser.add_argument(
+        "-q",
+        "--quantizer",
+        dest="quantizer",
+        choices=["pil", "cluster"],
+        default="pil",
+        help=(
+            "Quantization method. 'pil' (default): fast PIL-based. "
+            "'cluster': LAB-space clustering."
+        ),
+    )
+    parser.add_argument(
+        "--auto-colors",
+        dest="auto_colors",
+        action="store_true",
+        default=False,
+        help="Automatically determine the number of colors (only with --quantizer=cluster).",
+    )
+    parser.add_argument(
+        "--color-threshold",
+        dest="color_threshold",
+        type=float,
+        default=5.0,
+        help="Color distance threshold for auto color detection (LAB Delta E). Default: 5.0",
+    )
+    parser.add_argument(
+        "--center-ratio",
+        dest="center_ratio",
+        type=float,
+        default=1.0,
+        help="Sample only center portion of each cell (0.0-1.0). Reduces edge noise. Default: 1.0",
+    )
+
     args = parser.parse_args()
 
     # Either take the input as the first argument or use the -i flag
@@ -84,6 +131,20 @@ def parse_args() -> argparse.Namespace:
     )
 
     return args
+
+
+def create_quantizer(args: argparse.Namespace) -> Quantizer:
+    """Create quantizer based on CLI arguments."""
+    if args.quantizer == "pil":
+        return PILQuantizer(num_colors=args.num_colors)
+
+    num_colors = None if args.auto_colors else args.num_colors
+    return ClusterQuantizer(
+        num_colors=num_colors,
+        distance_threshold=args.color_threshold,
+        color_space="lab",
+        representative="most_frequent",
+    )
 
 
 def resolve_output_path(
@@ -106,6 +167,8 @@ def main() -> None:
     out_path = resolve_output_path(Path(args.out_path), input_path)
     out_path.parent.mkdir(exist_ok=True, parents=True)
 
+    quantizer = create_quantizer(args)
+
     img = Image.open(input_path)
     pixelated = pixelate.pixelate(
         img,
@@ -114,6 +177,9 @@ def main() -> None:
         transparent_background=args.transparent,
         pixel_width=args.pixel_width,
         initial_upscale_factor=args.initial_upscale,
+        pipeline=args.pipeline,
+        quantizer=quantizer,
+        center_ratio=args.center_ratio,
     )
 
     pixelated.save(out_path)
