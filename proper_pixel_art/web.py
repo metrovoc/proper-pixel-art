@@ -161,10 +161,10 @@ def create_demo():
                 center_ratio = gr.Slider(
                     0.5,
                     1.0,
-                    value=1.0,
+                    value=0.5,
                     step=0.1,
                     label="Center Ratio",
-                    info="Sample center portion of each cell (reduces edge noise)",
+                    info="Sample center portion of each cell. Rarely needs adjustment.",
                 )
 
             # Cluster-specific options
