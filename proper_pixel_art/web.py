@@ -84,6 +84,12 @@ def create_demo():
         "advanced": "**Advanced**: LAB color space + clustering. Best quality, auto color detection available.",
     }
 
+    # Dependency rules:
+    # - center_ratio: requires downsample_first (balanced, advanced)
+    # - auto_colors: requires cluster quantizer (advanced only)
+    # - color_threshold: requires auto_colors to be on
+    # - num_colors: disabled when auto_colors is on
+
     with gr.Blocks(title="Proper Pixel Art") as demo:
         gr.Markdown(
             "# Proper Pixel Art\n"
@@ -164,63 +170,59 @@ def create_demo():
                     value=0.5,
                     step=0.1,
                     label="Center Ratio",
-                    info="Sample center portion of each cell. Rarely needs adjustment.",
+                    info="Sample center of each cell (balanced/advanced only). Rarely needs adjustment.",
+                    interactive=True,  # balanced is default
                 )
 
-            # Cluster-specific options
-            cluster_options = gr.Group(visible=False)
-            with cluster_options:
-                gr.Markdown("**Cluster Quantizer Options**")
-                with gr.Row():
-                    auto_colors = gr.Checkbox(
-                        value=False,
-                        label="Auto Colors",
-                        info="Automatically determine color count",
-                    )
-                    color_threshold = gr.Slider(
-                        1.0,
-                        15.0,
-                        value=5.0,
-                        step=0.5,
-                        label="Color Threshold",
-                        info="LAB Delta E threshold for merging colors (lower = more colors)",
-                    )
+            with gr.Row():
+                auto_colors = gr.Checkbox(
+                    value=False,
+                    label="Auto Colors",
+                    info="Automatically determine color count (advanced only)",
+                    interactive=False,  # balanced is default
+                )
+                color_threshold = gr.Slider(
+                    1.0,
+                    15.0,
+                    value=5.0,
+                    step=0.5,
+                    label="Color Threshold",
+                    info="LAB Delta E threshold for merging colors (only when Auto Colors is on)",
+                    interactive=False,  # balanced is default
+                )
 
-        # Event handlers
-        def update_preset_desc(preset_value):
-            return preset_info[preset_value]
+        # Unified state update function
+        def update_ui_state(preset_value, auto_colors_value):
+            """Update all dependent UI elements based on current state."""
+            is_advanced = preset_value == "advanced"
+            uses_downsample = preset_value in ("balanced", "advanced")
+            auto_enabled = is_advanced and auto_colors_value
 
-        def update_cluster_visibility(preset_value):
-            return gr.update(visible=(preset_value == "advanced"))
+            return (
+                # num_colors: disabled when auto_colors is on
+                gr.update(interactive=not auto_enabled),
+                # center_ratio: enabled for balanced/advanced
+                gr.update(interactive=uses_downsample),
+                # auto_colors: enabled for advanced only
+                gr.update(interactive=is_advanced),
+                # color_threshold: only used when auto_colors is on
+                gr.update(interactive=auto_enabled),
+                # preset description
+                preset_info[preset_value],
+            )
 
-        def update_colors_interactive(auto_colors_value, preset_value):
-            # Disable num_colors when auto_colors is enabled in advanced mode
-            if preset_value == "advanced" and auto_colors_value:
-                return gr.update(interactive=False)
-            return gr.update(interactive=True)
-
+        # Single handler for preset changes
         preset.change(
-            fn=update_preset_desc,
+            fn=lambda p: update_ui_state(p, False),  # reset auto_colors on preset change
             inputs=[preset],
-            outputs=[preset_desc],
+            outputs=[num_colors, center_ratio, auto_colors, color_threshold, preset_desc],
         )
 
-        preset.change(
-            fn=update_cluster_visibility,
-            inputs=[preset],
-            outputs=[cluster_options],
-        )
-
+        # Handler for auto_colors changes
         auto_colors.change(
-            fn=update_colors_interactive,
-            inputs=[auto_colors, preset],
-            outputs=[num_colors],
-        )
-
-        preset.change(
-            fn=lambda p: update_colors_interactive(False, p),
-            inputs=[preset],
-            outputs=[num_colors],
+            fn=update_ui_state,
+            inputs=[preset, auto_colors],
+            outputs=[num_colors, center_ratio, auto_colors, color_threshold, preset_desc],
         )
 
         btn.click(
