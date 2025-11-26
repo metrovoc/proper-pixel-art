@@ -118,20 +118,23 @@ def create_demo():
 
         # Unified UI state update
         def update_ui(ds_first, cluster, auto):
-            # auto_colors only effective when LAB clustering is enabled
-            effective_auto = cluster and auto
+            # LAB clustering requires downsample_first (O(n²) memory on full image)
+            cluster_allowed = ds_first
+            effective_cluster = cluster_allowed and cluster
+            effective_auto = effective_cluster and auto
             return (
-                gr.update(interactive=not effective_auto),  # num_colors
-                gr.update(interactive=cluster),              # auto_colors
-                gr.update(interactive=effective_auto),       # threshold
-                gr.update(interactive=ds_first),             # center_ratio
+                gr.update(interactive=not effective_auto),           # num_colors
+                gr.update(value=effective_cluster, interactive=cluster_allowed),  # use_cluster
+                gr.update(interactive=effective_cluster),            # auto_colors
+                gr.update(interactive=effective_auto),               # threshold
+                gr.update(interactive=ds_first),                     # center_ratio
             )
 
         for ctrl in [downsample_first, use_cluster, auto_colors]:
             ctrl.change(
                 fn=update_ui,
                 inputs=[downsample_first, use_cluster, auto_colors],
-                outputs=[num_colors, auto_colors, threshold, center_ratio],
+                outputs=[num_colors, use_cluster, auto_colors, threshold, center_ratio],
             )
 
         btn.click(
