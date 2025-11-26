@@ -44,6 +44,11 @@ uvx --from https://github.com/KennethJAllen/proper-pixel-art.git ppa <input_path
 | `-t`, `--transparent` `<bool>`   | Output with transparent background. (default: off)                                                        |
 | `-u`, `--initial-upscale` `<int>` | Initial image upscale factor. Increasing this may help detect pixel edges. (default 2)                    |
 | `-w`, `--pixel-width` `<int>`    | Width of the pixels in the input image. If not set, it will be determined automatically. (default: None)  |
+| `--threshold` `<float>`          | Color distance threshold for auto-colors (LAB Delta E). (default: 5.0)                                    |
+| `--center-ratio` `<float>`       | Sample center portion of cells (0.5-1.0). (default: 0.5)                                                  |
+| `--no-downsample-first`          | Quantize then downsample (original behavior).                                                             |
+| `--no-cluster`                   | Use PIL quantization instead of LAB clustering.                                                           |
+| `--no-auto-colors`               | Use fixed color count (`-c`) instead of auto-detection.                                                   |
 
 #### Example
 
@@ -90,6 +95,15 @@ result.save('output.png')
 
 - `pixel_width` : `int | None`
   - Width of the pixels in the input image. If not set, it will be determined automatically. It may be helpful to increase this parameter if not enough pixel edges are being detected.
+
+- `downsample_first` : `bool`
+  - If True, downsample then quantize (better color consistency). If False, quantize then downsample (original algorithm). Default: False in API, True in CLI.
+
+- `quantizer` : `Callable[[Image], Image] | None`
+  - Custom quantization function. If None, uses PIL quantization. See `quantize_cluster` in `proper_pixel_art.quantize` for LAB-space clustering with auto color detection.
+
+- `center_ratio` : `float`
+  - Sample center portion of cells (0.5-1.0). Reduces edge noise. Default: 0.5.
 
 #### Returns
 
@@ -253,12 +267,13 @@ The current approach to turning pixel art into useable assets for games are eith
 
 <img src="./assets/blob/mesh.png" width="80%" alt="blob mesh"/>
 
-7) Quantize the original image to a small number of colors.
-    - Note: The result is sensitive to the number of colors chosen.
-    - The parameter is not difficult to tune, but the script may need to be re-run if the colors don't look right.
-    - 8, 16, 32, or 64 typically works.
+7) In each cell specified by the mesh, choose the most common color in the cell's center region as the color for the pixel. Recreate the original image with one pixel per cell.
 
-8) In each cell specified by the mesh, choose the most common color in the cell as the color for the pixel. Recreate the original image with one pixel per cell.
+8) Quantize colors using LAB-space hierarchical clustering with auto-detected color count.
+    - LAB space ensures perceptually uniform color distances.
+    - Similar colors (within threshold) are merged to eliminate noise.
+    - The most frequent original color in each cluster is used (no "compromise colors").
+    - For original behavior (quantize first, then downsample), use `--no-downsample-first --no-cluster --no-auto-colors -c <num_colors>`.
 
     - Result upscaled by a factor of $20 \times$ using nearest neighbor.
 
