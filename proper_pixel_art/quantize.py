@@ -36,7 +36,7 @@ def quantize_pil(image: Image.Image, num_colors: int = 16) -> Image.Image:
 def quantize_cluster(
     image: Image.Image,
     num_colors: int | None = None,
-    threshold: float = 5.0,
+    threshold: float = 1.0,
 ) -> Image.Image:
     """
     LAB-space clustering quantization.

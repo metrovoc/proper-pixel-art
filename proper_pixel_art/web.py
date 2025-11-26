@@ -93,9 +93,9 @@ def create_demo():
                     interactive=True,
                 )
                 threshold = gr.Slider(
-                    1.0, 15.0, value=5.0, step=0.5,
+                    1.0, 15.0, value=1.0, step=0.5,
                     label="Color Threshold",
-                    info="LAB Delta E for merging colors (requires Auto Colors)",
+                    info="Lower = more colors, higher = purer colors (requires Auto Colors)",
                     interactive=True,
                 )
 

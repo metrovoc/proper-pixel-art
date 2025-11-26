@@ -58,8 +58,8 @@ def parse_args() -> argparse.Namespace:
         help="Use fixed color count instead of auto-detection"
     )
     parser.add_argument(
-        "--threshold", dest="threshold", type=float, default=5.0,
-        help="Color distance threshold for auto-colors (LAB Delta E). Default: 5.0"
+        "--threshold", dest="threshold", type=float, default=1.0,
+        help="Color distance threshold for auto-colors (LAB Delta E). Lower = more colors, higher = purer colors. Default: 1.0"
     )
     parser.add_argument(
         "--center-ratio", dest="center_ratio", type=float, default=0.5,
