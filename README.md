@@ -44,7 +44,7 @@ uvx --from https://github.com/KennethJAllen/proper-pixel-art.git ppa <input_path
 | `-t`, `--transparent` `<bool>`   | Output with transparent background. (default: off)                                                        |
 | `-u`, `--initial-upscale` `<int>` | Initial image upscale factor. Increasing this may help detect pixel edges. (default 2)                    |
 | `-w`, `--pixel-width` `<int>`    | Width of the pixels in the input image. If not set, it will be determined automatically. (default: None)  |
-| `--threshold` `<float>`          | Color distance threshold for auto-colors (LAB Delta E). (default: 5.0)                                    |
+| `--threshold` `<float>`          | Color distance threshold for auto-colors. Lower = more colors, higher = purer colors. (default: 1.0)      |
 | `--center-ratio` `<float>`       | Sample center portion of cells (0.5-1.0). (default: 0.5)                                                  |
 | `--no-downsample-first`          | Quantize then downsample (original behavior).                                                             |
 | `--no-cluster`                   | Use PIL quantization instead of LAB clustering.                                                           |
