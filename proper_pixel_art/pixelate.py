@@ -1,16 +1,14 @@
-"""Main functions for pixelating an image with the pixelate function"""
+"""Main pixelation algorithm."""
 
+from collections.abc import Callable
 from pathlib import Path
-from typing import Literal
 
 import numpy as np
 from PIL import Image
 
 from proper_pixel_art import colors, mesh, utils
-from proper_pixel_art.quantize import PILQuantizer, Quantizer
+from proper_pixel_art.quantize import quantize_pil
 from proper_pixel_art.utils import Mesh
-
-PipelineOrder = Literal["quantize_first", "downsample_first"]
 
 
 def downsample(
@@ -19,18 +17,15 @@ def downsample(
     center_ratio: float = 0.5,
 ) -> Image.Image:
     """
-    Downsample the image by looping over each cell in mesh and
-    using the most common color as the pixel color.
+    Downsample image to one pixel per mesh cell using mode color.
 
     Args:
         image: Input image
         mesh_lines: (lines_x, lines_y) grid coordinates
-        center_ratio: Sample only the center portion of each cell (0.5-1.0).
-                      0.5 = center 50%, 1.0 = entire cell. Reduces edge noise.
+        center_ratio: Sample center portion of each cell (0.5-1.0). Reduces edge noise.
     """
     lines_x, lines_y = mesh_lines
-    rgb = image.convert("RGB")
-    rgb_array = np.array(rgb)
+    rgb_array = np.array(image.convert("RGB"))
     h_new, w_new = len(lines_y) - 1, len(lines_x) - 1
     out = np.zeros((h_new, w_new, 3), dtype=np.uint8)
 
@@ -46,7 +41,7 @@ def downsample(
                 margin_y = int(cell_h * (1 - center_ratio) / 2)
                 x0, x1 = x0 + margin_x, x1 - margin_x
                 y0, y1 = y0 + margin_y, y1 - margin_y
-                # Ensure at least 1 pixel
+                # Fallback if cell too small
                 if x1 <= x0:
                     x0, x1 = lines_x[i], lines_x[i + 1]
                 if y1 <= y0:
@@ -66,74 +61,38 @@ def pixelate(
     transparent_background: bool = False,
     intermediate_dir: Path | None = None,
     pixel_width: int | None = None,
-    # New parameters for pipeline configuration
-    pipeline: PipelineOrder = "quantize_first",
-    quantizer: Quantizer | None = None,
+    # New parameters
+    downsample_first: bool = False,
+    quantizer: Callable[[Image.Image], Image.Image] | None = None,
     center_ratio: float = 0.5,
 ) -> Image.Image:
     """
-    Computes the true resolution pixel art image.
+    Convert noisy pixel-art-style image to true pixel resolution.
 
     Args:
-        image: A PIL image to pixelate.
-
-        num_colors: The number of colors to use when quantizing the image.
-            Only used if quantizer is None. If too high, pixels that should be
-            the same color will be different colors. If too low, pixels that
-            should be different colors will be the same color.
-
-        scale_result: Upsample result by this factor after algorithm is complete.
-
-        initial_upscale_factor: Upsample original image by this factor for
-            better mesh detection.
-
-        transparent_background: If True, makes the most common boundary color
-            transparent in the result.
-
-        intermediate_dir: Directory to save images visualizing intermediate steps.
-
-        pixel_width: If set, skips automatic pixel width detection and uses
-            this value instead.
-
-        pipeline: Processing order for quantization and downsampling.
-            - "quantize_first": Original algorithm. Quantize colors on the full
-              image, then downsample. Fast but may produce "compromise colors".
-            - "downsample_first": Improved algorithm. Downsample first to extract
-              representative colors, then quantize. Better color accuracy.
-
-        quantizer: Custom quantization strategy. If None, uses PILQuantizer with
-            num_colors. For advanced usage, pass a ClusterQuantizer for LAB-space
-            clustering with automatic color count detection.
-
-        center_ratio: When downsampling, only sample the center portion of each
-            cell (0.5-1.0). 0.5 = center 50%, 1.0 = entire cell. Reduces edge
-            noise from grid misalignment. Rarely needs adjustment.
+        image: Input PIL image
+        num_colors: Colors for quantization (ignored if quantizer provided)
+        initial_upscale_factor: Upscale for better mesh detection
+        scale_result: Upscale final result by this factor
+        transparent_background: Make boundary color transparent
+        intermediate_dir: Save intermediate images for debugging
+        pixel_width: Manual pixel width (None = auto-detect)
+        downsample_first: If True, downsample then quantize (better colors).
+                          If False, quantize then downsample (original algorithm).
+        quantizer: Custom quantization function (Image -> Image).
+                   If None, uses quantize_pil with num_colors.
+        center_ratio: Sample center portion of cells (0.5-1.0). Reduces edge noise.
 
     Returns:
-        The true pixelated image.
-
-    Examples:
-        # Original behavior (backward compatible)
-        result = pixelate(image, num_colors=16)
-
-        # Improved: downsample first, then quantize
-        result = pixelate(image, num_colors=16, pipeline="downsample_first")
-
-        # Advanced: LAB clustering with auto color detection
-        from proper_pixel_art.quantize import ClusterQuantizer
-        result = pixelate(
-            image,
-            pipeline="downsample_first",
-            quantizer=ClusterQuantizer(distance_threshold=5.0)
-        )
+        Pixelated image with clean colors.
     """
     image_rgba = image.convert("RGBA")
 
-    # Create default quantizer if not provided
+    # Default quantizer
     if quantizer is None:
-        quantizer = PILQuantizer(num_colors=num_colors)
+        quantizer = lambda img: quantize_pil(img, num_colors)
 
-    # Calculate the pixel mesh lines
+    # Detect mesh
     mesh_lines, upscale_factor = mesh.compute_mesh_with_scaling(
         image_rgba,
         initial_upscale_factor,
@@ -141,101 +100,30 @@ def pixelate(
         pixel_width=pixel_width,
     )
 
-    # Preprocess: replace semi-transparent pixels with a smart background color.
-    # This prevents alpha artifacts from polluting the color quantization.
-    # Critical for GPT-4o images which often have imperfect transparency.
+    # Preprocess: replace semi-transparent pixels with smart background
     image_rgb = colors.clamp_alpha(image_rgba, mode="RGB")
 
-    if pipeline == "quantize_first":
-        # Original flow: quantize -> scale -> downsample
-        result = _pipeline_quantize_first(
-            image_rgb,
-            mesh_lines,
-            upscale_factor,
-            quantizer,
-            center_ratio,
-            intermediate_dir,
-        )
+    # Pipeline
+    if downsample_first:
+        # Improved: downsample -> quantize (cleaner colors)
+        scaled = utils.scale_img(image_rgb, upscale_factor)
+        raw = downsample(scaled, mesh_lines, center_ratio)
+        if intermediate_dir:
+            raw.save(intermediate_dir / "downsampled_raw.png")
+        result = quantizer(raw)
     else:
-        # Improved flow: scale -> downsample -> quantize
-        result = _pipeline_downsample_first(
-            image_rgb,
-            mesh_lines,
-            upscale_factor,
-            quantizer,
-            center_ratio,
-            intermediate_dir,
-        )
+        # Original: quantize -> downsample (center_ratio=1.0 for original method)
+        quantized = quantizer(image_rgb)
+        if intermediate_dir:
+            quantized.save(intermediate_dir / "quantized_full.png")
+        scaled = utils.scale_img(quantized, upscale_factor)
+        result = downsample(scaled, mesh_lines, 1.0)
 
-    # Apply transparency
+    # Post-process
     if transparent_background:
         result = colors.make_background_transparent(result)
 
-    # Upscale the result if requested
     if scale_result is not None:
         result = utils.scale_img(result, int(scale_result))
-
-    return result
-
-
-def _pipeline_quantize_first(
-    image: Image.Image,
-    mesh_lines: Mesh,
-    upscale_factor: int,
-    quantizer: Quantizer,
-    center_ratio: float,
-    intermediate_dir: Path | None,
-) -> Image.Image:
-    """
-    Original pipeline: quantize on full image, then downsample.
-
-    Flow: image -> quantize -> scale -> downsample -> result
-    """
-    # Quantize colors on the full image
-    quantized = quantizer(image)
-
-    if intermediate_dir is not None:
-        quantized.save(intermediate_dir / "quantized_full.png")
-
-    # Scale to match mesh dimensions
-    scaled = utils.scale_img(quantized, upscale_factor)
-
-    # Downsample by taking mode color per cell
-    result = downsample(scaled, mesh_lines, center_ratio)
-
-    return result
-
-
-def _pipeline_downsample_first(
-    image: Image.Image,
-    mesh_lines: Mesh,
-    upscale_factor: int,
-    quantizer: Quantizer,
-    center_ratio: float,
-    intermediate_dir: Path | None,
-) -> Image.Image:
-    """
-    Improved pipeline: downsample first to extract clean colors, then quantize.
-
-    Flow: image -> scale -> downsample -> quantize -> result
-
-    This reduces noise because:
-    1. Mode extraction removes within-cell color variations
-    2. Quantization operates on clean, representative colors
-    """
-    # Scale original image to match mesh dimensions
-    scaled = utils.scale_img(image, upscale_factor)
-
-    # Downsample by taking mode color per cell (noise removal)
-    raw_result = downsample(scaled, mesh_lines, center_ratio)
-
-    if intermediate_dir is not None:
-        raw_result.save(intermediate_dir / "downsampled_raw.png")
-
-    # Quantize the clean downsampled image
-    result = quantizer(raw_result)
-
-    if intermediate_dir is not None:
-        result.save(intermediate_dir / "quantized_final.png")
 
     return result
