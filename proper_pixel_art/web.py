@@ -33,7 +33,9 @@ def create_demo():
     import gradio as gr
 
     with gr.Blocks(title="Proper Pixel Art") as demo:
-        gr.Markdown("# Proper Pixel Art\nConvert AI-generated pixel art to true pixel resolution")
+        gr.Markdown(
+            "# Proper Pixel Art\nConvert AI-generated pixel art to true pixel resolution"
+        )
 
         with gr.Row():
             with gr.Column():
@@ -60,7 +62,9 @@ def create_demo():
 
         with gr.Row():
             initial_upscale = gr.Slider(1, 4, value=2, step=1, label="Initial Upscale")
-            pixel_width = gr.Slider(0, 50, value=0, step=1, label="Pixel Width (0=auto)")
+            pixel_width = gr.Slider(
+                0, 50, value=0, step=1, label="Pixel Width (0=auto)"
+            )
 
         with gr.Row():
             transparent = gr.Checkbox(value=False, label="Transparent Background")
@@ -68,7 +72,14 @@ def create_demo():
 
         btn.click(
             fn=process,
-            inputs=[input_img, num_colors, transparent, scale, initial_upscale, pixel_width],
+            inputs=[
+                input_img,
+                num_colors,
+                transparent,
+                scale,
+                initial_upscale,
+                pixel_width,
+            ],
             outputs=output_img,
         )
 
