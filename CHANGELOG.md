@@ -1,5 +1,16 @@
 # Changelog
 
+## Unreleased
+
+- `colors.cell_center_ratio` (default `1.0`): sample only the central fraction
+  of each mesh cell's width and height when picking its color and
+  transparency, so anti-aliased or slightly misaligned cell edges don't vote.
+  Applies to both color methods and to video. `build_cell_map` takes a
+  matching `center_ratio` argument.
+- `colors.dominant.merge_color_space` (default `rgb`): set to `lab` to merge
+  output colors by perceptual CIELAB distance (CIE76 delta E) instead of
+  Euclidean RGB; `merge_distance` is then in delta E units and accepts floats.
+
 ## 2.0.0
 
 A breaking cleanup release: the config object is now the single source of

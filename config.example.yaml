@@ -43,6 +43,7 @@ colors:
   top_colors_limit: 8
   thumbnail_size: [160, 160]
   background_candidates: null
+  cell_center_ratio: 1.0           # sample only this central fraction of each cell (0-1]; 1 = whole cell
   palette:                         # used when method is palette
     num_colors: 16                 # palette size (1-256)
     quantize_method: MAXCOVERAGE   # MAXCOVERAGE, FASTOCTREE, MEDIANCUT, LIBIMAGEQUANT
@@ -50,7 +51,8 @@ colors:
     kmeans: 0                      # k-means refinement iterations; 0 disables
   dominant:                        # used when method is dominant
     bin_size: 52                   # RGB bin size for the per-cell dominant color
-    merge_distance: 12             # merge output colors closer than this (Euclidean RGB); 0 disables
+    merge_distance: 12             # merge output colors closer than this (in merge_color_space); 0 disables
+    merge_color_space: rgb         # rgb (Euclidean RGB) or lab (CIELAB delta E; try ~5)
     merge_linkage: complete        # linkage criterion: complete, average, or single
     max_linkage_colors: 4096       # cap on unique colors fitted by the merge clustering
 

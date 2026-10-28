@@ -237,6 +237,17 @@ def test_unknown_merge_linkage_raises():
         DominantConfig(merge_linkage="ward")
 
 
+def test_unknown_merge_color_space_raises():
+    with pytest.raises(ValueError, match="Unknown merge_color_space"):
+        DominantConfig(merge_color_space="hsv")
+
+
+@pytest.mark.parametrize("ratio", [0, -0.5, 1.5])
+def test_cell_center_ratio_out_of_range_raises(ratio):
+    with pytest.raises(ValueError, match="cell_center_ratio"):
+        ColorConfig(cell_center_ratio=ratio)
+
+
 def test_max_linkage_colors_too_small_raises():
     with pytest.raises(ValueError, match="max_linkage_colors must be >= 2"):
         DominantConfig(max_linkage_colors=1)

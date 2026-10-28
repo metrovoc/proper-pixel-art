@@ -147,8 +147,11 @@ class DominantConfig:
     """
 
     bin_size: int = 52  # RGB bin size for the per-cell dominant color
-    merge_distance: int = (
-        12  # merge output colors closer than this (Euclidean RGB); 0 disables
+    merge_distance: float = (
+        12  # merge output colors closer than this (in merge_color_space); 0 disables
+    )
+    merge_color_space: str = (
+        "rgb"  # "rgb" (Euclidean RGB) or "lab" (CIELAB, i.e. CIE76 delta E)
     )
     merge_linkage: str = (
         "complete"  # scipy linkage criterion: "complete", "average" or "single"
@@ -162,9 +165,14 @@ class DominantConfig:
         # 255 // bin_size + 1); 0 would raise an opaque ZeroDivisionError later.
         if self.bin_size < 1:
             raise ValueError(f"bin_size must be >= 1, got {self.bin_size}.")
-        # Restrict to criteria whose cut height is in Euclidean RGB units, so
+        # Restrict to criteria whose cut height is a plain Euclidean distance, so
         # merge_distance keeps its meaning (ward/centroid/median cut heights
         # are not plain distances).
+        if self.merge_color_space not in ("rgb", "lab"):
+            raise ValueError(
+                f"Unknown merge_color_space {self.merge_color_space!r}. "
+                f"Valid options: rgb, lab."
+            )
         if self.merge_linkage not in ("complete", "average", "single"):
             raise ValueError(
                 f"Unknown merge_linkage {self.merge_linkage!r}. "
@@ -193,11 +201,18 @@ class ColorConfig:
     )
     top_colors_limit: int = 8  # common colors sampled to pick a background
     thumbnail_size: tuple[int, int] = (160, 160)  # downscale size for color analysis
+    cell_center_ratio: float = (
+        1.0  # sample only this central fraction of each cell's width/height; 1 = all
+    )
     background_candidates: list[RGB] | None = None  # override background palette
     palette: "PaletteConfig" = field(default_factory=PaletteConfig)
     dominant: "DominantConfig" = field(default_factory=DominantConfig)
 
     def __post_init__(self) -> None:
+        if not 0 < self.cell_center_ratio <= 1:
+            raise ValueError(
+                f"cell_center_ratio must be in (0, 1], got {self.cell_center_ratio}."
+            )
         if self.method not in ("dominant", "palette"):
             raise ValueError(
                 f"Unknown color method {self.method!r}. "

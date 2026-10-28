@@ -119,6 +119,22 @@ class TestBuildCellMap:
             np.bincount(expected[expected >= 0], minlength=cell_map.n_cells),
         )
 
+    def test_center_ratio_keeps_cell_centers(self):
+        """center_ratio drops each cell's outer (1 - ratio) / 2 margin per side."""
+        cell_map = build_cell_map(([0, 10, 20], [0, 4]), (4, 20), center_ratio=0.5)
+        expected = np.full((4, 20), -1, dtype=np.int32)
+        expected[1:3, 2:8] = 0
+        expected[1:3, 12:18] = 1
+        np.testing.assert_array_equal(cell_map.cell_id, expected)
+        np.testing.assert_array_equal(cell_map.cell_sizes, [12, 12])
+
+    def test_center_ratio_never_empties_cells(self):
+        rng = np.random.default_rng(4)
+        mesh_lines = (_random_mesh(rng, 9), _random_mesh(rng, 7))
+        hw = (mesh_lines[1][-1], mesh_lines[0][-1])
+        cell_map = build_cell_map(mesh_lines, hw, center_ratio=0.01)
+        assert (cell_map.cell_sizes > 0).all()
+
 
 def _assert_equal_modulo_mode_ties(
     result: Image.Image,
@@ -209,6 +225,29 @@ class TestDownsampleMatchesReference:
         )
         np.testing.assert_array_equal(np.array(result)[..., :3], expected)
         assert np.all(np.array(result)[..., 3] == 255)
+
+    def test_cell_center_ratio_ignores_cell_edges(self):
+        """A 2px red border outweighs each 8px cell's blue center unless
+        cell_center_ratio restricts sampling to the center."""
+        rgba = np.zeros((8, 16, 4), dtype=np.uint8)
+        rgba[..., :3] = (255, 0, 0)
+        rgba[..., 3] = 255
+        rgba[2:6, 2:6, :3] = (0, 0, 255)
+        rgba[2:6, 10:14, :3] = (0, 0, 255)
+        image = Image.fromarray(rgba, mode="RGBA")
+        mesh_lines = ([0, 8, 16], [0, 8])
+
+        def cell_colors(ratio: float) -> set:
+            result = downsample(
+                image,
+                mesh_lines,
+                skip_quantization=True,
+                color_config=ColorConfig(cell_center_ratio=ratio),
+            )
+            return {tuple(p) for p in np.array(result)[..., :3].reshape(-1, 3)}
+
+        assert cell_colors(1.0) == {(255, 0, 0)}
+        assert cell_colors(0.5) == {(0, 0, 255)}
 
     def test_quantized_path_with_alpha(self):
         rng = np.random.default_rng(2)

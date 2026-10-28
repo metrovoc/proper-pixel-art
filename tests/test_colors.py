@@ -431,3 +431,45 @@ class TestColorMerger:
         img = self._image([(100, 100, 100, 0), (50, 50, 50, 0)])
         merged = colors.merge_output_colors(img, DominantConfig(merge_distance=12))
         assert merged.tobytes() == img.convert("RGBA").tobytes()
+
+
+class TestRgbToLab:
+    def test_reference_values(self):
+        lab = colors.rgb_to_lab(np.array([[255, 255, 255], [0, 0, 0], [255, 0, 0]]))
+        np.testing.assert_allclose(
+            lab, [[100, 0, 0], [0, 0, 0], [53.24, 80.09, 67.20]], atol=0.01
+        )
+
+
+class TestColorMergerLab:
+    # Light greys 17 RGB units apart but only ~3.5 delta E apart: perceptually
+    # near-identical, yet beyond any small RGB merge distance.
+    _GREYS = [(240, 240, 240, 255)] * 3 + [(250, 250, 250, 255)] * 2
+
+    def _image(self, pixel_colors: list[tuple]) -> Image.Image:
+        arr = np.array(pixel_colors, dtype=np.uint8).reshape(1, -1, 4)
+        return Image.fromarray(arr, mode="RGBA")
+
+    def _merged_colors(self, img: Image.Image, dominant: DominantConfig) -> set:
+        merged = np.asarray(colors.merge_output_colors(img, dominant))
+        return {tuple(p) for p in merged.reshape(-1, 4)}
+
+    def test_lab_merges_perceptually_close_colors(self):
+        img = self._image(self._GREYS)
+        lab = DominantConfig(merge_distance=5, merge_color_space="lab")
+        rgb = DominantConfig(merge_distance=5)
+        assert self._merged_colors(img, lab) == {(240, 240, 240, 255)}
+        assert self._merged_colors(img, rgb) == {
+            (240, 240, 240, 255),
+            (250, 250, 250, 255),
+        }
+
+    def test_lab_nearest_representative(self):
+        merger = colors.ColorMerger(
+            DominantConfig(merge_distance=5, merge_color_space="lab")
+        ).fit([self._image([(240, 240, 240, 255)] * 3)])
+        merged = np.asarray(
+            merger.apply(self._image([(250, 250, 250, 255), (200, 50, 50, 255)]))
+        )
+        assert tuple(merged[0, 0]) == (240, 240, 240, 255)  # near -> mapped
+        assert tuple(merged[0, 1]) == (200, 50, 50, 255)  # far -> unchanged

@@ -260,7 +260,11 @@ class FramePipeline:
         self.scale_result = scale_result
         self.skip_quantization = self.color_config.method == "dominant"
 
-        self.cell_map = build_cell_map(mesh_lines, (height * factor, width * factor))
+        self.cell_map = build_cell_map(
+            mesh_lines,
+            (height * factor, width * factor),
+            center_ratio=self.color_config.cell_center_ratio,
+        )
         self._row_idx = np.arange(height * factor) // factor
         self._col_idx = np.arange(width * factor) // factor
 

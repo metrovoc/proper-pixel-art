@@ -180,6 +180,35 @@ def dominant_rgb_by_binning(rgb_pixels: np.ndarray, bin_size: int) -> RGB:
     return tuple(np.median(dominant_pixels, axis=0).astype(np.uint8))
 
 
+# sRGB (D65) -> CIE XYZ matrix and D65 reference white, for rgb_to_lab.
+_RGB_TO_XYZ = np.array(
+    [
+        [0.4124564, 0.3575761, 0.1804375],
+        [0.2126729, 0.7151522, 0.0721750],
+        [0.0193339, 0.1191920, 0.9503041],
+    ]
+)
+_D65_WHITE = np.array([0.95047, 1.0, 1.08883])
+
+
+def rgb_to_lab(rgb: np.ndarray) -> np.ndarray:
+    """Convert (N, 3) sRGB values in 0-255 to (N, 3) CIELAB (D65) floats.
+
+    Euclidean distance in LAB (CIE76 delta E) tracks perceived color
+    difference far better than Euclidean RGB: a delta E around 2.3 is a
+    just-noticeable difference.
+    """
+    srgb = np.asarray(rgb, dtype=float) / 255.0
+    linear = np.where(srgb <= 0.04045, srgb / 12.92, ((srgb + 0.055) / 1.055) ** 2.4)
+    xyz = linear @ _RGB_TO_XYZ.T / _D65_WHITE
+    epsilon, kappa = 216 / 24389, 24389 / 27
+    f = np.where(xyz > epsilon, np.cbrt(xyz), (kappa * xyz + 16) / 116)
+    lightness = 116 * f[:, 1] - 16
+    a = 500 * (f[:, 0] - f[:, 1])
+    b = 200 * (f[:, 1] - f[:, 2])
+    return np.stack([lightness, a, b], axis=1)
+
+
 # Unseen colors are matched against representatives in chunks of this many
 # colors at a time to bound the broadcast (chunk x reps x 3) array.
 _NEAREST_CHUNK = 512
@@ -191,7 +220,8 @@ class ColorMerger:
     In the skip-quantization path each cell independently picks a
     binned-median color, so logically-identical colors come out a few RGB
     units apart (visible speckle in flat areas). Colors are grouped by scipy
-    agglomerative clustering cut at ``distance`` (Euclidean RGB), and every
+    agglomerative clustering cut at ``distance`` (Euclidean in RGB, or in
+    CIELAB when ``merge_color_space`` is ``"lab"``), and every
     color maps to its cluster's most frequent member, so flat areas collapse
     to one color. With the default ``"complete"`` linkage criterion every
     cluster's diameter is bounded by ``distance``; ``"single"`` chain-merges
@@ -217,6 +247,7 @@ class ColorMerger:
         dominant = dominant or DominantConfig()
         self.distance = dominant.merge_distance
         self.distance_sq = self.distance * self.distance
+        self.color_space = dominant.merge_color_space
         self.linkage = dominant.merge_linkage
         self.max_colors = dominant.max_linkage_colors
         self.alpha_threshold = (
@@ -227,16 +258,24 @@ class ColorMerger:
         self.representatives: list[RGB] = []
         self._mapping: dict[RGB, RGB] = {}
 
+    def _coords(self, rgb: np.ndarray) -> np.ndarray:
+        """Coordinates of (N, 3) RGB colors in the merge color space."""
+        if self.color_space == "lab":
+            return rgb_to_lab(rgb)
+        return np.asarray(rgb, dtype=float)
+
     def _nearest_representatives(self, unseen: np.ndarray) -> np.ndarray:
         """Map each color in ``unseen`` (K x 3 int) to the nearest
         representative within ``distance``, else keep it unchanged."""
         if not self.representatives:
             return unseen
         reps = np.array(self.representatives, dtype=np.int64)
+        rep_coords = self._coords(reps)
+        unseen_coords = self._coords(unseen)
         result = unseen.copy()
         for start in range(0, len(unseen), _NEAREST_CHUNK):
-            chunk = unseen[start : start + _NEAREST_CHUNK]
-            dist_sq = ((chunk[:, None, :] - reps[None, :, :]) ** 2).sum(axis=2)
+            chunk = unseen_coords[start : start + _NEAREST_CHUNK]
+            dist_sq = ((chunk[:, None, :] - rep_coords[None, :, :]) ** 2).sum(axis=2)
             nearest = np.argmin(dist_sq, axis=1)
             within = dist_sq[np.arange(len(chunk)), nearest] <= self.distance_sq
             result[start : start + _NEAREST_CHUNK][within] = reps[nearest[within]]
@@ -270,7 +309,7 @@ class ColorMerger:
                 : self.max_colors
             ]
         merge_tree = hierarchy.linkage(
-            np.array(unique_colors, dtype=float),
+            self._coords(np.array(unique_colors)),
             method=self.linkage,
             metric="euclidean",
         )

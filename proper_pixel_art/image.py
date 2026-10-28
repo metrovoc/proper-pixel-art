@@ -26,27 +26,45 @@ class CellMap:
     cell_sizes: np.ndarray  # (n_cells,) pixel count per cell
 
 
-def build_cell_map(mesh_lines: Mesh, image_hw: tuple[int, int]) -> CellMap:
+def _axis_cell_index(lines: list[int], size: int, center_ratio: float) -> np.ndarray:
+    """Cell index along one axis for each of ``size`` coordinates, -1 outside.
+
+    With ``center_ratio`` < 1, coordinates in the outer margins of each cell
+    (``(1 - center_ratio) / 2`` of its span on each side, floored) also get -1.
+    The margin is always less than half the span, so no cell becomes empty.
+    """
+    lines_arr = np.asarray(lines, dtype=np.int64)
+    coords = np.arange(size)
+    idx = np.searchsorted(lines_arr, coords, side="right") - 1
+    outside = (coords < lines_arr[0]) | (coords >= lines_arr[-1])
+    if center_ratio < 1:
+        cell = np.clip(idx, 0, len(lines_arr) - 2)
+        start, end = lines_arr[cell], lines_arr[cell + 1]
+        margin = ((end - start) * (1 - center_ratio) / 2).astype(np.int64)
+        outside |= (coords < start + margin) | (coords >= end - margin)
+    idx[outside] = -1
+    return idx.astype(np.int32)
+
+
+def build_cell_map(
+    mesh_lines: Mesh, image_hw: tuple[int, int], center_ratio: float = 1.0
+) -> CellMap:
     """
     Map every pixel of an ``image_hw``-sized image to its mesh cell index.
 
     Cell (j, i) covers pixels with x in [lines_x[i], lines_x[i+1]) and
     y in [lines_y[j], lines_y[j+1]); pixels outside [lines[0], lines[-1])
     get cell_id -1, matching the slicing semantics of the per-cell loop this
-    replaced.
+    replaced. ``center_ratio`` < 1 keeps only the central fraction of each
+    cell's width and height (the rest gets -1), so anti-aliased or misaligned
+    cell edges don't vote on the cell's color or transparency.
     """
     lines_x, lines_y = mesh_lines
     height, width = image_hw
-    lx = np.asarray(lines_x, dtype=np.int64)
-    ly = np.asarray(lines_y, dtype=np.int64)
     n_cols, n_rows = len(lines_x) - 1, len(lines_y) - 1
 
-    coords_x = np.arange(width)
-    coords_y = np.arange(height)
-    xs = (np.searchsorted(lx, coords_x, side="right") - 1).astype(np.int32)
-    ys = (np.searchsorted(ly, coords_y, side="right") - 1).astype(np.int32)
-    xs[(coords_x < lx[0]) | (coords_x >= lx[-1])] = -1
-    ys[(coords_y < ly[0]) | (coords_y >= ly[-1])] = -1
+    xs = _axis_cell_index(lines_x, width, center_ratio)
+    ys = _axis_cell_index(lines_y, height, center_ratio)
 
     cell_id = ys[:, None] * n_cols + xs[None, :]
     cell_id[(ys[:, None] < 0) | (xs[None, :] < 0)] = -1
@@ -255,7 +273,11 @@ def downsample(
     """
     color_config = color_config or ColorConfig()
     if cell_map is None:
-        cell_map = build_cell_map(mesh_lines, (image.height, image.width))
+        cell_map = build_cell_map(
+            mesh_lines,
+            (image.height, image.width),
+            center_ratio=color_config.cell_center_ratio,
+        )
 
     if skip_quantization:
         rgba = np.asarray(image.convert("RGBA"))
